@@ -13,10 +13,12 @@ export default function Products({ id, name, emoji, category, quantity, expire_d
     const [deleteModalVisible, setDeleteModalVisible] = React.useState(false);
     const [modalVisible, setModalVisible] = React.useState(false);
     const [editData, setEditData] = React.useState({ name, category, quantity: String(quantity) });
+    
     const handleEdit = () => {
         setEditData({ emoji, name, category, quantity: String(quantity), expire_date });
         setModalVisible(true);
     };
+    
     const handleSave = async () => {
         await updateDoc(doc(database, 'productos', id), {
             name: editData.name,
@@ -35,6 +37,25 @@ export default function Products({ id, name, emoji, category, quantity, expire_d
         }
 
         setModalVisible(false);
+    };
+
+    // Función para incrementar cantidad
+    const handleIncrement = async () => {
+        const newQuantity = parseInt(quantity) + 1;
+        await updateDoc(doc(database, 'productos', id), {
+            quantity: String(newQuantity),
+        });
+    };
+
+    // Función para decrementar cantidad
+    const handleDecrement = async () => {
+        const currentQuantity = parseInt(quantity);
+        if (currentQuantity > 0) {
+            const newQuantity = currentQuantity - 1;
+            await updateDoc(doc(database, 'productos', id), {
+                quantity: String(newQuantity),
+            });
+        }
     };
 
     const onDelete = async () => {
@@ -129,7 +150,29 @@ export default function Products({ id, name, emoji, category, quantity, expire_d
             </RN.View>
             <RN.Text style={styles.name}>{name}</RN.Text>
             <RN.Text style={styles.category}>{category}</RN.Text>
-            <RN.Text style={styles.quantity}>Cantidad: {quantity}</RN.Text>
+            
+            
+            <RN.View style={styles.quantityContainer}>
+                <RN.Text style={styles.quantityLabel}>Cantidad:</RN.Text>
+                <RN.View style={styles.quantityControls}>
+                    <RN.TouchableOpacity 
+                        style={styles.quantityButton}
+                        onPress={handleDecrement}
+                    >
+                        <AntDesign name="minus" size={14} color="#fff" />
+                    </RN.TouchableOpacity>
+                    
+                    <RN.Text style={styles.quantityValue}>{quantity}</RN.Text>
+                    
+                    <RN.TouchableOpacity 
+                        style={styles.quantityButton}
+                        onPress={handleIncrement}
+                    >
+                        <AntDesign name="plus" size={14} color="#fff" />
+                    </RN.TouchableOpacity>
+                </RN.View>
+            </RN.View>
+
             {expireStyle && expireStyle.text ? (
                 <RN.Text style={[styles.expireDate, { color: expireStyle.color }]}>
                     {expireStyle.text}
@@ -197,35 +240,62 @@ const styles = RN.StyleSheet.create({
         fontSize: 18,
         color: "#888",
     },
-    quantity: {
+    quantityContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginTop: 8,
+    },
+    quantityLabel: {
         fontSize: 18,
         color: "#888",
+        marginRight: 12,
     },
-
-     expireDate: {
+    quantityControls: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#f0f0f0',
+        borderRadius: 8,
+        padding: 4,
+    },
+    quantityButton: {
+        backgroundColor: '#0fa5e9',
+        width: 24,
+        height: 25,
+        borderRadius: 6,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    quantityValue: {
+        fontSize: 16,
+        fontWeight: 'bold',
+        marginHorizontal: 16,
+        minWidth: 25,
+        textAlign: 'center',
+    },
+    expireDate: {
         fontSize: 16,
         color: '#FF6347',
         fontWeight: 'bold',
-        marginTop: 4,
+        marginTop: 8,
     },
-
     button:{
         backgroundColor: "#0fa5e9",
         padding: 10,
         marginVertical: 5,
         borderRadius:8,
         alignItems: "center",
-
     },
     buttonText: {
         color: "#fff",
         fontSize: 24,
         fontWeight: "bold",
     },
-    expireDate: {
-        fontSize: 16,
-        color: '#1ca81cff',
-        fontWeight: 'bold',
-        marginTop: 4,
+    inputContainer: {
+        width: "100%",
+        padding:13,
+        marginVertical: 6,
+        borderWidth: 1,
+        borderColor: "#ddd",
+        borderRadius: 6,
     },
 });
