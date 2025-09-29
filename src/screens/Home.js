@@ -2,14 +2,20 @@ import * as React from "react";
 import * as RN from "react-native";
 
 import { useNavigation } from "@react-navigation/native";
-import { database} from "../config/fb";
+import { database } from "../config/fb";
 import { collection, onSnapshot, orderBy, query } from "firebase/firestore";
 import Products from "../components/Products";
+import { 
+    requestNotificationPermissions, } from "../services/notification";
 
 export default function Home() {
     const [products, setProducts] = React.useState([]);
     const navigation = useNavigation();
 
+    // Solicitar permisos al cargar la app
+    React.useEffect(() => {
+        requestNotificationPermissions();
+    }, []);
 
     React.useLayoutEffect(() => {
         navigation.setOptions({
@@ -34,26 +40,36 @@ export default function Home() {
         const collectionRef = collection(database, "productos");
         const q = query(collectionRef, orderBy("createdAt", "desc"));
 
-        const unsubscribe = onSnapshot(q, querySnapshot => {
-            setProducts(
-                querySnapshot.docs.map(doc => ({
-                    id: doc.id,
-                    emoji: doc.data().emoji,
-                    name: doc.data().name,
-                    category: doc.data().category,
-                    quantity: doc.data().quantity,
-                    expire_date: doc.data().expire_date,
-                }))
-            );
-        });
-        return unsubscribe;
+        const unsubscribe = onSnapshot(q, async querySnapshot => {
+            const productsData = querySnapshot.docs.map(doc => ({
+                id: doc.id,
+                emoji: doc.data().emoji,
+                name: doc.data().name,
+                category: doc.data().category,
+                quantity: doc.data().quantity,
+                expire_date: doc.data().expire_date,
+            }));
             
+            setProducts(productsData);
+            
+        });
+        
+        return unsubscribe;
     }, []);
+
     return (
-        <>
+        <RN.ScrollView style={{ flex: 1, backgroundColor: '#f5f5f5' }}>
             <RN.Text style={styles.header}>Inventario</RN.Text>
-            {products.map(products => <Products key={products.id} {...products} />)}
-        </>
+            {products.length === 0 ? (
+                <RN.View style={{ padding: 32, alignItems: 'center' }}>
+                    <RN.Text style={{ fontSize: 18, color: '#888', textAlign: 'center' }}>
+                        No hay productos en tu despensa.{'\n'}¡Agrega tu primer producto!
+                    </RN.Text>
+                </RN.View>
+            ) : (
+                products.map(product => <Products key={product.id} {...product} />)
+            )}
+        </RN.ScrollView>
     );
 }
 

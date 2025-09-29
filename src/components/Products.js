@@ -3,6 +3,7 @@ import * as RN from 'react-native';
 
 import { database } from '../config/fb';
 import { deleteDoc, doc, updateDoc } from "firebase/firestore";
+import { cancelProductNotifications, scheduleProductNotifications } from "../services/notification";
 
 import {AntDesign} from '@expo/vector-icons';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -13,7 +14,7 @@ export default function Products({ id, name, emoji, category, quantity, expire_d
     const [modalVisible, setModalVisible] = React.useState(false);
     const [editData, setEditData] = React.useState({ name, category, quantity: String(quantity) });
     const handleEdit = () => {
-        setEditData({ name, category, quantity: String(quantity) });
+        setEditData({ emoji, name, category, quantity: String(quantity), expire_date });
         setModalVisible(true);
     };
     const handleSave = async () => {
@@ -22,14 +23,80 @@ export default function Products({ id, name, emoji, category, quantity, expire_d
             category: editData.category,
             quantity: editData.quantity,
         });
+
+         // Reprogramar notificaciones con el nuevo nombre
+        if (expire_date) {
+            await scheduleProductNotifications({
+                id,
+                name: editData.name,
+                emoji,
+                expire_date
+            });
+        }
+
         setModalVisible(false);
     };
 
     const onDelete = async () => {
+        // Cancelar todas las notificaciones del producto
+        await cancelProductNotifications(id);
+
         const docRef = doc(database, "productos", id);
         await deleteDoc(docRef);
         setDeleteModalVisible(false);
     };
+
+    // Calcular días hasta el vencimiento y el color
+    const getDaysUntilExpire = () => {
+        if (!expire_date) return null;
+        
+        // Crear fechas 
+        const today = new Date();
+        const [year, month, day] = expire_date.split('-').map(Number);
+        const expireDate = new Date(year, month - 1, day);
+        
+        today.setHours(0, 0, 0, 0);
+        expireDate.setHours(0, 0, 0, 0);
+        
+        const diffTime = expireDate - today;
+        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+        
+        return diffDays;
+    };
+
+    const getExpireStyle = () => {
+        const days = getDaysUntilExpire();
+        if (days === null) return { color: '#1ca81c', text: '' };
+        
+        if (days < 0) {
+            return { 
+                color: '#8B0000', 
+                text: `⚠️ Vencido hace ${Math.abs(days)} día(s)`,
+                bg: '#FFE5E5'
+            };
+        } else if (days === 0) {
+            return { 
+                color: '#FF6347', 
+                text: '🚨 Vence HOY',
+                bg: '#FFF0E5'
+            };
+        } else if (days <= 3) {
+            return { 
+                color: '#FFA500', 
+                text: `⚠️ Vence en ${days} día(s)`,
+                bg: '#FFF8E5'
+            };
+        } else {
+            return { 
+                color: '#1ca81c', 
+                text: `Vence: ${expire_date}`,
+                bg: '#F0FFF0'
+            };
+        }
+    };
+
+    const expireStyle = getExpireStyle();
+
     return(
         <RN.View style={styles.productContainer}>
             <RN.View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -63,8 +130,10 @@ export default function Products({ id, name, emoji, category, quantity, expire_d
             <RN.Text style={styles.name}>{name}</RN.Text>
             <RN.Text style={styles.category}>{category}</RN.Text>
             <RN.Text style={styles.quantity}>Cantidad: {quantity}</RN.Text>
-            {expire_date ? (
-                <RN.Text style={styles.expireDate}>Vence: {expire_date}</RN.Text>
+            {expireStyle && expireStyle.text ? (
+                <RN.Text style={[styles.expireDate, { color: expireStyle.color }]}>
+                    {expireStyle.text}
+                </RN.Text>
             ) : null}
             <RN.Modal
                 visible={modalVisible}

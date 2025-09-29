@@ -6,6 +6,7 @@ import EmojiPicker from "rn-emoji-keyboard";
 import { database} from "../config/fb";
 import { collection, addDoc } from "firebase/firestore";
 import { useNavigation } from "@react-navigation/native";
+import { scheduleProductNotifications } from "../services/notification";
 
 
 export default function Home() {
@@ -22,7 +23,18 @@ export default function Home() {
     });
 
     const onSend = async() => {
-        await addDoc(collection(database, "productos"), newItem);
+
+        const docRef = await addDoc(collection(database, "productos"), newItem);
+        
+        // Programar notificaciones si tiene fecha de vencimiento
+        if (newItem.expire_date) {
+            await scheduleProductNotifications({
+                ...newItem,
+                id: docRef.id
+            });
+        }
+
+
         navigation.goBack();
 
     }
@@ -76,6 +88,7 @@ export default function Home() {
                     value={newItem.expire_date ? new Date(newItem.expire_date) : new Date()}
                     mode="date"
                     display="default"
+                    minimumDate={new Date()}
                     onChange={(event, selectedDate) => {
                         setShowDatePicker(false);
                         if (selectedDate) {
