@@ -93,7 +93,7 @@ export async function scheduleProductNotifications(product) {
           data: { productId: product.id, type: 'today' },
           sound: true,
         },
-        trigger: notificationTime,
+        trigger: { type: 'date', date: notificationTime }, 
       });
     } else {
       // Si ya pasaron las 9 AM, enviar inmediatamente
@@ -124,7 +124,7 @@ export async function scheduleProductNotifications(product) {
           data: { productId: product.id, type: 'warning_3days' },
           sound: true,
         },
-        trigger: threeDaysBefore,
+        trigger: { type: 'date', date: threeDaysBefore }
       });
     }
   }
@@ -143,7 +143,7 @@ export async function scheduleProductNotifications(product) {
           data: { productId: product.id, type: 'urgent_tomorrow' },
           sound: true,
         },
-        trigger: oneDayBefore,
+        trigger: { type: 'date', date: oneDayBefore },
       });
     }
   }
@@ -161,7 +161,7 @@ export async function scheduleProductNotifications(product) {
           data: { productId: product.id, type: 'expiring_today' },
           sound: true,
         },
-        trigger: expirationDay,
+        trigger: { type: 'date', date: expirationDay },
       });
     }
   }

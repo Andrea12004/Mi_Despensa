@@ -7,7 +7,7 @@ import { database} from "../config/fb";
 import { collection, addDoc } from "firebase/firestore";
 import { useNavigation } from "@react-navigation/native";
 import { scheduleProductNotifications } from "../services/notification";
-
+import { Picker } from '@react-native-picker/picker';
 
 export default function Home() {
     const [showDatePicker, setShowDatePicker] = React.useState(false);
@@ -59,12 +59,28 @@ export default function Home() {
                 value={newItem.name}
                 onChangeText={(text) => setNewItem({...newItem, name: text})}
             />
-            <RN.TextInput
-                style = {styles.inputContainer}
-                placeholder="Categoría"
-                value={newItem.category}
-                onChangeText={(text) => setNewItem({...newItem, category: text})}
-            />
+
+            <RN.View style={styles.inputContainer}>
+                <Picker
+                    selectedValue={newItem.category}
+                    onValueChange={(value) => setNewItem({...newItem, category: value})}
+                    style={{ height: 50 }}
+                >
+                    <Picker.Item label="Selecciona una categoría" value="" />
+                    <Picker.Item label="Frutas" value="Frutas" />
+                    <Picker.Item label="Verduras" value="Verduras" />
+                    <Picker.Item label="Lácteos" value="Lácteos" />
+                    <Picker.Item label="Carnes" value="Carnes" />
+                    <Picker.Item label="Granos" value="Granos" />
+                    <Picker.Item label="Panadería" value="Panadería" />
+                    <Picker.Item label="Bebidas" value="Bebidas" />
+                    <Picker.Item label="Condimentos" value="Condimentos" />
+                    <Picker.Item label="Congelados" value="Congelados" />
+                    <Picker.Item label="Dulces" value="Dulces" />
+                    <Picker.Item label="Enlatados" value="Enlatados" />
+                    <Picker.Item label="Otros" value="Otros" />
+                </Picker>
+            </RN.View>
 
 
 

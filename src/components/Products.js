@@ -4,16 +4,17 @@ import * as RN from 'react-native';
 import { database } from '../config/fb';
 import { deleteDoc, doc, updateDoc } from "firebase/firestore";
 import { cancelProductNotifications, scheduleProductNotifications } from "../services/notification";
-
+import { Picker } from '@react-native-picker/picker';
 import {AntDesign} from '@expo/vector-icons';
 import { MaterialIcons } from '@expo/vector-icons';
+import DateTimePicker from '@react-native-community/datetimepicker';
 
 export default function Products({ id, name, emoji, category, quantity, expire_date }) {
 
     const [deleteModalVisible, setDeleteModalVisible] = React.useState(false);
     const [modalVisible, setModalVisible] = React.useState(false);
     const [editData, setEditData] = React.useState({ name, category, quantity: String(quantity) });
-    
+    const [showEditDatePicker, setShowEditDatePicker] = React.useState(false);
     const handleEdit = () => {
         setEditData({ emoji, name, category, quantity: String(quantity), expire_date });
         setModalVisible(true);
@@ -23,16 +24,16 @@ export default function Products({ id, name, emoji, category, quantity, expire_d
         await updateDoc(doc(database, 'productos', id), {
             name: editData.name,
             category: editData.category,
-            quantity: editData.quantity,
+             expire_date: editData.expire_date,
         });
 
          // Reprogramar notificaciones con el nuevo nombre
-        if (expire_date) {
+            if (editData.expire_date) {
             await scheduleProductNotifications({
                 id,
                 name: editData.name,
                 emoji,
-                expire_date
+                expire_date: editData.expire_date
             });
         }
 
@@ -193,19 +194,55 @@ export default function Products({ id, name, emoji, category, quantity, expire_d
                             value={editData.name}
                             onChangeText={text => setEditData({ ...editData, name: text })}
                         />
-                        <RN.TextInput
-                            style={styles.inputContainer}
-                            placeholder="Categoría"
-                            value={editData.category}
-                            onChangeText={text => setEditData({ ...editData, category: text })}
-                        />
-                        <RN.TextInput
-                            style={styles.inputContainer}
-                            placeholder="Cantidad"
-                            value={editData.quantity}
-                            onChangeText={text => setEditData({ ...editData, quantity: text })}
-                            keyboardType="numeric"
-                        />
+                        <RN.View style={styles.inputContainer}>
+                            <Picker
+                                selectedValue={editData.category}
+                                onValueChange={(value) => setEditData({...editData, category: value})}
+                                    >
+                                        <Picker.Item label="Selecciona una categoría" value="" />
+                                        <Picker.Item label="Frutas" value="Frutas" />
+                                        <Picker.Item label="Verduras" value="Verduras" />
+                                        <Picker.Item label="Lácteos" value="Lácteos" />
+                                        <Picker.Item label="Carnes" value="Carnes" />
+                                        <Picker.Item label="Granos" value="Granos" />
+                                        <Picker.Item label="Panadería" value="Panadería" />
+                                        <Picker.Item label="Bebidas" value="Bebidas" />
+                                        <Picker.Item label="Condimentos" value="Condimentos" />
+                                        <Picker.Item label="Congelados" value="Congelados" />
+                                        <Picker.Item label="Dulces" value="Dulces" />
+                                        <Picker.Item label="Enlatados" value="Enlatados" />
+                                        <Picker.Item label="Otros" value="Otros" />
+                            </Picker>
+                        </RN.View>
+
+                        <RN.TouchableOpacity
+                            style={[styles.inputContainer, { justifyContent: 'center' }]}
+                            onPress={() => setShowEditDatePicker(true)}
+                        >
+                            <RN.Text style={{ color: editData.expire_date ? '#222' : '#888', fontSize: 16 }}>
+                                {editData.expire_date ? `Vence: ${editData.expire_date}` : 'Selecciona fecha de vencimiento'}
+                            </RN.Text>
+                        </RN.TouchableOpacity>
+
+                        {showEditDatePicker && (
+                            <DateTimePicker
+                                value={editData.expire_date ? new Date(editData.expire_date) : new Date()}
+                                mode="date"
+                                display="default"
+                                minimumDate={new Date()}
+                                onChange={(event, selectedDate) => {
+                                    setShowEditDatePicker(false);
+                                    if (selectedDate) {
+                                        const yyyy = selectedDate.getFullYear();
+                                        const mm = String(selectedDate.getMonth() + 1).padStart(2, '0');
+                                        const dd = String(selectedDate.getDate()).padStart(2, '0');
+                                        setEditData({ ...editData, expire_date: `${yyyy}-${mm}-${dd}` });
+                                    }
+                                }}
+                            />
+                        )}
+
+                       
                         <RN.View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 16 }}>
                             <RN.TouchableOpacity onPress={() => setModalVisible(false)} style={{ marginRight: 16 }}>
                                 <RN.Text style={{ color: '#888', fontSize: 16 }}>Cancelar</RN.Text>
