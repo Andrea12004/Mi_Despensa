@@ -43,11 +43,11 @@ export default function Home() {
         const unsubscribe = onSnapshot(q, async querySnapshot => {
             const productsData = querySnapshot.docs.map(doc => ({
                 id: doc.id,
-                emoji: doc.data().emoji,
                 name: doc.data().name,
                 category: doc.data().category,
                 quantity: doc.data().quantity,
                 expire_date: doc.data().expire_date,
+                imageUrl: doc.data().imageUrl,
             }));
             
             setProducts(productsData);

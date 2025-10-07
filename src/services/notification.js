@@ -70,7 +70,7 @@ export async function scheduleProductNotifications(product) {
     await Notifications.scheduleNotificationAsync({
       content: {
         title: ' Producto Vencido',
-        body: `${product.emoji} ${product.name} ya está vencido hace ${Math.abs(daysUntilExpire)} día(s). ¡Elimínalo de tu despensa!`,
+        body: `${product.name} ya está vencido hace ${Math.abs(daysUntilExpire)} día(s). ¡Elimínalo de tu despensa!`,
         data: { productId: product.id, type: 'expired' },
         sound: true,
       },
@@ -89,7 +89,7 @@ export async function scheduleProductNotifications(product) {
       await Notifications.scheduleNotificationAsync({
         content: {
           title: '¡Producto vence HOY!',
-          body: `${product.emoji} ${product.name} vence hoy. ¡Úsalo pronto!`,
+          body: `${product.name} vence hoy. ¡Úsalo pronto!`,
           data: { productId: product.id, type: 'today' },
           sound: true,
         },
@@ -100,7 +100,7 @@ export async function scheduleProductNotifications(product) {
       await Notifications.scheduleNotificationAsync({
         content: {
           title: '¡Producto vence HOY!',
-          body: `${product.emoji} ${product.name} vence hoy. ¡Úsalo pronto!`,
+          body: `${product.name} vence hoy. ¡Úsalo pronto!`,
           data: { productId: product.id, type: 'today' },
           sound: true,
         },
@@ -120,7 +120,7 @@ export async function scheduleProductNotifications(product) {
       await Notifications.scheduleNotificationAsync({
         content: {
           title: ' Producto próximo a vencer',
-          body: `${product.emoji} ${product.name} vence en 3 días`,
+          body: `${product.name} vence en 3 días`,
           data: { productId: product.id, type: 'warning_3days' },
           sound: true,
         },
@@ -139,7 +139,7 @@ export async function scheduleProductNotifications(product) {
       await Notifications.scheduleNotificationAsync({
         content: {
           title: '¡Producto vence MAÑANA!',
-          body: `${product.emoji} ${product.name} vence mañana. ¡No lo desperdicies!`,
+          body: `${product.name} vence mañana. ¡No lo desperdicies!`,
           data: { productId: product.id, type: 'urgent_tomorrow' },
           sound: true,
         },
@@ -157,7 +157,7 @@ export async function scheduleProductNotifications(product) {
       await Notifications.scheduleNotificationAsync({
         content: {
           title: '¡Producto vence HOY!',
-          body: `${product.emoji} ${product.name} vence hoy. ¡Úsalo pronto!`,
+          body: `${product.name} vence hoy. ¡Úsalo pronto!`,
           data: { productId: product.id, type: 'expiring_today' },
           sound: true,
         },
@@ -192,7 +192,7 @@ export async function checkExpiredProducts(products) {
           await Notifications.scheduleNotificationAsync({
             content: {
               title: 'Producto Vencido',
-              body: `${product.emoji} ${product.name} está vencido hace ${Math.abs(daysUntilExpire)} día(s). ¡Elimínalo de tu despensa!`,
+              body: `${product.name} está vencido hace ${Math.abs(daysUntilExpire)} día(s). ¡Elimínalo de tu despensa!`,
               data: { productId: product.id, type: 'expired' },
               sound: true,
             },

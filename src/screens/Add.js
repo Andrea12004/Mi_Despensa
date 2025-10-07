@@ -8,22 +8,42 @@ import { collection, addDoc } from "firebase/firestore";
 import { useNavigation } from "@react-navigation/native";
 import { scheduleProductNotifications } from "../services/notification";
 import { Picker } from '@react-native-picker/picker';
+import ImageService from '../services/ImageService';
 
 export default function Home() {
     const [showDatePicker, setShowDatePicker] = React.useState(false);
     const navigation = useNavigation();
-    const [isOpen, setIsOpen] = React.useState(false);
+    const [isSaving, setIsSaving] = React.useState(false);
     const [newItem, setNewItem] = React.useState({
-        emoji: '🤑',
         name: '',
         category: '',
         quantity: '',
         expire_date: '',
+        imageUrl: '',
         createdAt: new Date(),
     });
 
     const onSend = async() => {
+        if (isSaving) return;
 
+         if (!newItem.name || !newItem.category || !newItem.quantity || !newItem.expire_date) {
+            RN.Alert.alert('Campos incompletos', 'Por favor completa nombre, categoría , cantidad, fecha de vencimiento');
+            return;
+        }
+         setIsSaving(true);
+
+         const imagenResultado = await ImageService.obtenerImagenProducto(
+                newItem.name, 
+                newItem.category
+            );
+            
+            // Agregar URL de imagen al producto
+            const productoConImagen = {
+                ...newItem,
+                imageUrl: imagenResultado.url
+            };
+
+            // Guardar en Firebase
         const docRef = await addDoc(collection(database, "productos"), newItem);
         
         // Programar notificaciones si tiene fecha de vencimiento
@@ -39,23 +59,14 @@ export default function Home() {
 
     }
 
-    const handlePick = (emojiObject) => {
-        setNewItem({...newItem, emoji: emojiObject.emoji});
-    }
     return (
-        <RN.View style = {styles.container}>
-            <RN.Text style = {styles.title}>Ingresar producto a Mi Despensa</RN.Text>
-            <RN.Text style = {styles.emoji} onPress={() => setIsOpen(true)}>{newItem.emoji}</RN.Text>
-            <EmojiPicker
-                onEmojiSelected={handlePick}
-                open={isOpen}
-                onClose={() => setIsOpen(false)}
-            
-            />
+        <RN.ScrollView contentContainerStyle={styles.container}>
+            <RN.Text style={styles.title}>Agregar Producto</RN.Text>
+            <RN.Text style={styles.subtitle}>Ingresa los datos del producto</RN.Text>
 
             <RN.TextInput
-                style = {styles.inputContainer}
-                placeholder="Nombre del producto"
+                style={styles.inputContainer}
+                placeholder="Nombre del producto *"
                 value={newItem.name}
                 onChangeText={(text) => setNewItem({...newItem, name: text})}
             />
@@ -66,7 +77,7 @@ export default function Home() {
                     onValueChange={(value) => setNewItem({...newItem, category: value})}
                     style={{ height: 50 }}
                 >
-                    <Picker.Item label="Selecciona una categoría" value="" />
+                    <Picker.Item label="Selecciona una categoría *" value="" />
                     <Picker.Item label="Frutas" value="Frutas" />
                     <Picker.Item label="Verduras" value="Verduras" />
                     <Picker.Item label="Lácteos" value="Lácteos" />
@@ -82,13 +93,12 @@ export default function Home() {
                 </Picker>
             </RN.View>
 
-
-
             <RN.TextInput
-                style = {styles.inputContainer}
-                placeholder="Cantidad"
+                style={styles.inputContainer}
+                placeholder="Cantidad *"
                 value={newItem.quantity}
                 onChangeText={(text) => setNewItem({...newItem, quantity: text})}
+                keyboardType="numeric"
             />
 
             <RN.TouchableOpacity
@@ -96,9 +106,10 @@ export default function Home() {
                 onPress={() => setShowDatePicker(true)}
             >
                 <RN.Text style={{ color: newItem.expire_date ? '#222' : '#888', fontSize: 16 }}>
-                    {newItem.expire_date ? `Vence: ${newItem.expire_date}` : 'Selecciona fecha de vencimiento'}
+                    {newItem.expire_date ? `Vence: ${newItem.expire_date}` : 'Fecha de vencimiento *'}
                 </RN.Text>
             </RN.TouchableOpacity>
+            
             {showDatePicker && (
                 <DateTimePicker
                     value={newItem.expire_date ? new Date(newItem.expire_date) : new Date()}
@@ -118,49 +129,70 @@ export default function Home() {
             )}
 
             <RN.TouchableOpacity
-                style={{
-                    backgroundColor: '#FF6347',
-                    borderRadius: 6,
-                    paddingVertical: 12,
-                    paddingHorizontal: 32,
-                    marginTop: 12,
-                }}
+                style={[styles.button, isSaving && styles.buttonDisabled]}
                 onPress={onSend}
+                disabled={isSaving}
             >
-                <RN.Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 18, textAlign: 'center' }}>Guardar</RN.Text>
+                {isSaving ? (
+                    <RN.ActivityIndicator color="#fff" />
+                ) : (
+                    <RN.Text style={styles.buttonText}>Guardar Producto</RN.Text>
+                )}
             </RN.TouchableOpacity>
-        </RN.View>
+        </RN.ScrollView>
     );
 }
 
 const styles = RN.StyleSheet.create({
     container: {
-        flex: 1,
+        flexGrow: 1,
         justifyContent: "center",
         alignItems: "center",
-        backgroundColor: "#ffffffff",
+        backgroundColor: "#ffffff",
+        paddingVertical: 20,
+        paddingHorizontal: 20,
     },
-
     title: {
-        fontSize: 32,
-        fontWeight: "700",
-
+        fontSize: 28,
+        fontWeight: "bold",
+        marginBottom: 8,
+        color: '#333',
+    },
+    subtitle: {
+        fontSize: 16,
+        color: '#666',
+        marginBottom: 24,
     },
     inputContainer: {
-        width: "80%",
-        padding:13,
+        width: "100%",
+        padding: 13,
         marginVertical: 6,
         borderWidth: 1,
         borderColor: "#ddd",
         borderRadius: 6,
+        backgroundColor: '#fff',
     },
-    emoji: {
-        fontSize: 100,
-        borderWidth: 1,
-        borderColor: "#ddd",
+    button: {
+        width: "100%",
+        backgroundColor: '#FF6347',
         borderRadius: 6,
-        padding: 10,
-        marginVertical: 7,
+        paddingVertical: 14,
+        paddingHorizontal: 32,
+        marginTop: 16,
+        alignItems: 'center',
     },
-    
+    buttonDisabled: {
+        backgroundColor: '#CCC',
+    },
+    buttonText: {
+        color: '#fff',
+        fontWeight: 'bold',
+        fontSize: 18,
+    },
+    loadingText: {
+        marginTop: 12,
+        fontSize: 14,
+        color: '#666',
+        fontStyle: 'italic',
+    },
 });

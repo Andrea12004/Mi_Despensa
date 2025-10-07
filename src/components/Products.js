@@ -1,22 +1,61 @@
 import * as React from 'react';
 import * as RN from 'react-native';
-
+import { MaterialCommunityIcons } from '@expo/vector-icons'; // ← AGREGAR ESTE IMPORT
 import { database } from '../config/fb';
 import { deleteDoc, doc, updateDoc } from "firebase/firestore";
 import { cancelProductNotifications, scheduleProductNotifications } from "../services/notification";
 import { Picker } from '@react-native-picker/picker';
-import {AntDesign} from '@expo/vector-icons';
+import { AntDesign } from '@expo/vector-icons';
 import { MaterialIcons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import ImageService from '../services/ImageService';
 
-export default function Products({ id, name, emoji, category, quantity, expire_date }) {
+// ← CAMBIAR LA FIRMA DE LA FUNCIÓN, agregar imageUrl
+export default function Products({ id, name, category, quantity, expire_date, imageUrl }) {
 
     const [deleteModalVisible, setDeleteModalVisible] = React.useState(false);
     const [modalVisible, setModalVisible] = React.useState(false);
     const [editData, setEditData] = React.useState({ name, category, quantity: String(quantity) });
     const [showEditDatePicker, setShowEditDatePicker] = React.useState(false);
+    
+    // Estados para la imagen
+    const [productImage, setProductImage] = React.useState(imageUrl || null);
+    const [loadingImage, setLoadingImage] = React.useState(!imageUrl);
+
+    // Cargar imagen cuando el componente se monta
+    React.useEffect(() => {
+        if (imageUrl) {
+            setProductImage(imageUrl);
+            setLoadingImage(false);
+            return;
+        }
+        cargarImagenDelProducto();
+    }, []);
+    
+    const cargarImagenDelProducto = async () => {
+        try {
+            setLoadingImage(true);
+            
+            const resultado = await ImageService.obtenerImagenProducto(name, category);
+            
+            if (resultado && resultado.url) {
+                setProductImage(resultado.url);
+                
+                // Guardar URL en Firebase
+                await updateDoc(doc(database, 'productos', id), {
+                    imageUrl: resultado.url
+                });
+            }
+            
+            setLoadingImage(false);
+        } catch (error) {
+            console.error('Error cargando imagen:', error);
+            setLoadingImage(false);
+        }
+    };
+
     const handleEdit = () => {
-        setEditData({ emoji, name, category, quantity: String(quantity), expire_date });
+        setEditData({ name, category, quantity: String(quantity), expire_date });
         setModalVisible(true);
     };
     
@@ -24,15 +63,15 @@ export default function Products({ id, name, emoji, category, quantity, expire_d
         await updateDoc(doc(database, 'productos', id), {
             name: editData.name,
             category: editData.category,
-             expire_date: editData.expire_date,
+            quantity: editData.quantity,
+            expire_date: editData.expire_date,
         });
 
-         // Reprogramar notificaciones con el nuevo nombre
-            if (editData.expire_date) {
+        // Reprogramar notificaciones
+        if (editData.expire_date) {
             await scheduleProductNotifications({
                 id,
                 name: editData.name,
-                emoji,
                 expire_date: editData.expire_date
             });
         }
@@ -40,7 +79,6 @@ export default function Products({ id, name, emoji, category, quantity, expire_d
         setModalVisible(false);
     };
 
-    // Función para incrementar cantidad
     const handleIncrement = async () => {
         const newQuantity = parseInt(quantity) + 1;
         await updateDoc(doc(database, 'productos', id), {
@@ -48,7 +86,6 @@ export default function Products({ id, name, emoji, category, quantity, expire_d
         });
     };
 
-    // Función para decrementar cantidad
     const handleDecrement = async () => {
         const currentQuantity = parseInt(quantity);
         if (currentQuantity > 0) {
@@ -60,19 +97,15 @@ export default function Products({ id, name, emoji, category, quantity, expire_d
     };
 
     const onDelete = async () => {
-        // Cancelar todas las notificaciones del producto
         await cancelProductNotifications(id);
-
         const docRef = doc(database, "productos", id);
         await deleteDoc(docRef);
         setDeleteModalVisible(false);
     };
 
-    // Calcular días hasta el vencimiento y el color
     const getDaysUntilExpire = () => {
         if (!expire_date) return null;
         
-        // Crear fechas 
         const today = new Date();
         const [year, month, day] = expire_date.split('-').map(Number);
         const expireDate = new Date(year, month - 1, day);
@@ -94,25 +127,21 @@ export default function Products({ id, name, emoji, category, quantity, expire_d
             return { 
                 color: '#8B0000', 
                 text: `⚠️ Vencido hace ${Math.abs(days)} día(s)`,
-                bg: '#FFE5E5'
             };
         } else if (days === 0) {
             return { 
                 color: '#FF6347', 
                 text: '🚨 Vence HOY',
-                bg: '#FFF0E5'
             };
         } else if (days <= 3) {
             return { 
                 color: '#FFA500', 
                 text: `⚠️ Vence en ${days} día(s)`,
-                bg: '#FFF8E5'
             };
         } else {
             return { 
                 color: '#1ca81c', 
                 text: `Vence: ${expire_date}`,
-                bg: '#F0FFF0'
             };
         }
     };
@@ -121,11 +150,67 @@ export default function Products({ id, name, emoji, category, quantity, expire_d
 
     return(
         <RN.View style={styles.productContainer}>
-            <RN.View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                <RN.Text style={styles.emoji}>{emoji}</RN.Text>
+            <RN.View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+                {/* IMAGEN DEL PRODUCTO */}
+                <RN.View style={styles.imageContainer}>
+                    {loadingImage ? (
+                        <RN.ActivityIndicator size="large" color="#FF6347" />
+                    ) : productImage ? (
+                        <RN.Image 
+                            source={{ uri: productImage }}  // ← Siempre usar { uri: ... }
+                            style={styles.productImage}
+                            resizeMode="cover"
+                        />
+                    ) : (
+                        <MaterialCommunityIcons 
+                            name="food-apple" 
+                            size={48} 
+                            color="#888"
+                        />
+                    )}
+                </RN.View>
+
+                {/* CONTENIDO DEL PRODUCTO */}
+                <RN.View style={{ flex: 1, marginLeft: 12 }}>
+                    <RN.Text style={styles.name}>{name}</RN.Text>
+                    <RN.Text style={styles.category}>{category}</RN.Text>
+                    
+                    <RN.View style={styles.quantityContainer}>
+                        <RN.Text style={styles.quantityLabel}>Cantidad:</RN.Text>
+                        <RN.View style={styles.quantityControls}>
+                            <RN.TouchableOpacity 
+                                style={styles.quantityButton}
+                                onPress={handleDecrement}
+                            >
+                                <AntDesign name="minus" size={14} color="#fff" />
+                            </RN.TouchableOpacity>
+                            
+                            <RN.Text style={styles.quantityValue}>{quantity}</RN.Text>
+                            
+                            <RN.TouchableOpacity 
+                                style={styles.quantityButton}
+                                onPress={handleIncrement}
+                            >
+                                <AntDesign name="plus" size={14} color="#fff" />
+                            </RN.TouchableOpacity>
+                        </RN.View>
+                    </RN.View>
+
+                    {expireStyle && expireStyle.text ? (
+                        <RN.Text style={[styles.expireDate, { color: expireStyle.color }]}>
+                            {expireStyle.text}
+                        </RN.Text>
+                    ) : null}
+                </RN.View>
+
+                {/* BOTONES EDIT/DELETE */}
                 <RN.View style={{ flexDirection: 'row', alignItems: 'center' }}>
                     <MaterialIcons onPress={handleEdit} name='edit' size={24} color='#0fa5e9' style={{ marginRight: 12 }} />
                     <AntDesign onPress={() => setDeleteModalVisible(true)} name='delete' size={24} color='red' />
+                </RN.View>
+            </RN.View>
+
+            {/* MODAL DE ELIMINACIÓN */}
             <RN.Modal
                 visible={deleteModalVisible}
                 animationType="fade"
@@ -147,38 +232,8 @@ export default function Products({ id, name, emoji, category, quantity, expire_d
                     </RN.View>
                 </RN.View>
             </RN.Modal>
-                </RN.View>
-            </RN.View>
-            <RN.Text style={styles.name}>{name}</RN.Text>
-            <RN.Text style={styles.category}>{category}</RN.Text>
-            
-            
-            <RN.View style={styles.quantityContainer}>
-                <RN.Text style={styles.quantityLabel}>Cantidad:</RN.Text>
-                <RN.View style={styles.quantityControls}>
-                    <RN.TouchableOpacity 
-                        style={styles.quantityButton}
-                        onPress={handleDecrement}
-                    >
-                        <AntDesign name="minus" size={14} color="#fff" />
-                    </RN.TouchableOpacity>
-                    
-                    <RN.Text style={styles.quantityValue}>{quantity}</RN.Text>
-                    
-                    <RN.TouchableOpacity 
-                        style={styles.quantityButton}
-                        onPress={handleIncrement}
-                    >
-                        <AntDesign name="plus" size={14} color="#fff" />
-                    </RN.TouchableOpacity>
-                </RN.View>
-            </RN.View>
 
-            {expireStyle && expireStyle.text ? (
-                <RN.Text style={[styles.expireDate, { color: expireStyle.color }]}>
-                    {expireStyle.text}
-                </RN.Text>
-            ) : null}
+            {/* MODAL DE EDICIÓN */}
             <RN.Modal
                 visible={modalVisible}
                 animationType="slide"
@@ -198,22 +253,30 @@ export default function Products({ id, name, emoji, category, quantity, expire_d
                             <Picker
                                 selectedValue={editData.category}
                                 onValueChange={(value) => setEditData({...editData, category: value})}
-                                    >
-                                        <Picker.Item label="Selecciona una categoría" value="" />
-                                        <Picker.Item label="Frutas" value="Frutas" />
-                                        <Picker.Item label="Verduras" value="Verduras" />
-                                        <Picker.Item label="Lácteos" value="Lácteos" />
-                                        <Picker.Item label="Carnes" value="Carnes" />
-                                        <Picker.Item label="Granos" value="Granos" />
-                                        <Picker.Item label="Panadería" value="Panadería" />
-                                        <Picker.Item label="Bebidas" value="Bebidas" />
-                                        <Picker.Item label="Condimentos" value="Condimentos" />
-                                        <Picker.Item label="Congelados" value="Congelados" />
-                                        <Picker.Item label="Dulces" value="Dulces" />
-                                        <Picker.Item label="Enlatados" value="Enlatados" />
-                                        <Picker.Item label="Otros" value="Otros" />
+                            >
+                                <Picker.Item label="Selecciona una categoría" value="" />
+                                <Picker.Item label="Frutas" value="Frutas" />
+                                <Picker.Item label="Verduras" value="Verduras" />
+                                <Picker.Item label="Lácteos" value="Lácteos" />
+                                <Picker.Item label="Carnes" value="Carnes" />
+                                <Picker.Item label="Granos" value="Granos" />
+                                <Picker.Item label="Panadería" value="Panadería" />
+                                <Picker.Item label="Bebidas" value="Bebidas" />
+                                <Picker.Item label="Condimentos" value="Condimentos" />
+                                <Picker.Item label="Congelados" value="Congelados" />
+                                <Picker.Item label="Dulces" value="Dulces" />
+                                <Picker.Item label="Enlatados" value="Enlatados" />
+                                <Picker.Item label="Otros" value="Otros" />
                             </Picker>
                         </RN.View>
+
+                        <RN.TextInput
+                            style={styles.inputContainer}
+                            placeholder="Cantidad"
+                            value={editData.quantity}
+                            onChangeText={text => setEditData({ ...editData, quantity: text })}
+                            keyboardType="numeric"
+                        />
 
                         <RN.TouchableOpacity
                             style={[styles.inputContainer, { justifyContent: 'center' }]}
@@ -242,7 +305,6 @@ export default function Products({ id, name, emoji, category, quantity, expire_d
                             />
                         )}
 
-                       
                         <RN.View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 16 }}>
                             <RN.TouchableOpacity onPress={() => setModalVisible(false)} style={{ marginRight: 16 }}>
                                 <RN.Text style={{ color: '#888', fontSize: 16 }}>Cancelar</RN.Text>
@@ -260,22 +322,38 @@ export default function Products({ id, name, emoji, category, quantity, expire_d
 
 const styles = RN.StyleSheet.create({
     productContainer: {
-        padding:16,
+        padding: 16,
         backgroundColor: "#ffffff",
-        margin:16,
-        borderRadius:8,
+        margin: 16,
+        borderRadius: 8,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        elevation: 3,
     },
-    emoji: {
-        fontSize: 48,
-        textAlign: "center",
+    imageContainer: {
+        width: 80,
+        height: 80,
+        borderRadius: 12,
+        justifyContent: 'center',
+        alignItems: 'center',
+        overflow: 'hidden',
+        backgroundColor: '#f5f5f5',
+    },
+    productImage: {
+        width: '100%',
+        height: '100%',
     },
     name: {
-        fontSize: 24,
+        fontSize: 20,
         fontWeight: "bold",
+        marginBottom: 4,
     },
     category: {
-        fontSize: 18,
+        fontSize: 16,
         color: "#888",
+        marginBottom: 8,
     },
     quantityContainer: {
         flexDirection: 'row',
@@ -283,7 +361,7 @@ const styles = RN.StyleSheet.create({
         marginTop: 8,
     },
     quantityLabel: {
-        fontSize: 18,
+        fontSize: 16,
         color: "#888",
         marginRight: 12,
     },
@@ -310,26 +388,13 @@ const styles = RN.StyleSheet.create({
         textAlign: 'center',
     },
     expireDate: {
-        fontSize: 16,
-        color: '#FF6347',
+        fontSize: 14,
         fontWeight: 'bold',
         marginTop: 8,
     },
-    button:{
-        backgroundColor: "#0fa5e9",
-        padding: 10,
-        marginVertical: 5,
-        borderRadius:8,
-        alignItems: "center",
-    },
-    buttonText: {
-        color: "#fff",
-        fontSize: 24,
-        fontWeight: "bold",
-    },
     inputContainer: {
         width: "100%",
-        padding:13,
+        padding: 13,
         marginVertical: 6,
         borderWidth: 1,
         borderColor: "#ddd",
