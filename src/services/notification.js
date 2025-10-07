@@ -110,29 +110,29 @@ export async function scheduleProductNotifications(product) {
     return;
   }
   
-  // Notificación 3 días antes (solo si faltan exactamente 3 o más días)
+ // Notificación 3 días antes
   if (daysUntilExpire >= 3) {
-    const threeDaysBefore = new Date(expireDate);
-    threeDaysBefore.setDate(threeDaysBefore.getDate() - 3);
+    const threeDaysBefore = new Date(today);
+    threeDaysBefore.setDate(today.getDate() + (daysUntilExpire - 3));
     threeDaysBefore.setHours(9, 0, 0, 0);
     
     if (threeDaysBefore > new Date()) {
       await Notifications.scheduleNotificationAsync({
         content: {
-          title: ' Producto próximo a vencer',
+          title: 'Producto próximo a vencer',
           body: `${product.name} vence en 3 días`,
           data: { productId: product.id, type: 'warning_3days' },
           sound: true,
         },
-        trigger: { type: 'date', date: threeDaysBefore }
+        trigger: threeDaysBefore
       });
     }
   }
   
-  // Notificación 1 día antes (mañana vence)
+  // Notificación 1 día antes
   if (daysUntilExpire >= 2) {
-    const oneDayBefore = new Date(expireDate);
-    oneDayBefore.setDate(oneDayBefore.getDate() - 1);
+    const oneDayBefore = new Date(today);
+    oneDayBefore.setDate(today.getDate() + (daysUntilExpire - 1));
     oneDayBefore.setHours(9, 0, 0, 0);
     
     if (oneDayBefore > new Date()) {
@@ -143,14 +143,15 @@ export async function scheduleProductNotifications(product) {
           data: { productId: product.id, type: 'urgent_tomorrow' },
           sound: true,
         },
-        trigger: { type: 'date', date: oneDayBefore },
+        trigger: oneDayBefore,
       });
     }
   }
   
-  // Notificación el día del vencimiento (solo si faltan más de 1 día)
-  if (daysUntilExpire > 1) {
-    const expirationDay = new Date(expireDate);
+  // Notificación el día del vencimiento
+  if (daysUntilExpire > 0) {
+    const expirationDay = new Date(today);
+    expirationDay.setDate(today.getDate() + daysUntilExpire);
     expirationDay.setHours(9, 0, 0, 0);
     
     if (expirationDay > new Date()) {
@@ -161,7 +162,7 @@ export async function scheduleProductNotifications(product) {
           data: { productId: product.id, type: 'expiring_today' },
           sound: true,
         },
-        trigger: { type: 'date', date: expirationDay },
+        trigger: expirationDay,
       });
     }
   }
