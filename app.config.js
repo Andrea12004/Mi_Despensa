@@ -17,6 +17,8 @@ export default {
       "supportsTablet": true
     },
     "android": {
+      "permissions": ["RECORD_AUDIO"],
+       package: "com.andrecs.ladespensa",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
@@ -26,13 +28,19 @@ export default {
     "web": {
       "favicon": "./assets/favicon.png"
     },
+    "plugins": [
+      "expo-speech-recognition"
+    ],
     extra:{
       apiKey: process.env.API_KEY,
       authDomain: process.env.AUTH_DOMAIN,
       projectId: process.env.PROJECT_ID,
       storageBucket: process.env.STORAGE_BUCKET,
       messagingSenderId: process.env.MESSAGING_SENDER_ID,
-      appId: process.env.APP_ID
+      appId: process.env.APP_ID,
+      eas: {
+        projectId: "ea9d867e-56a9-49c5-82cd-e6d6f1ed4381"
+      }
     }
   }
 }
