@@ -10,7 +10,6 @@ import { MaterialIcons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import ImageService from '../services/ImageService';
 
-// ← CAMBIAR LA FIRMA DE LA FUNCIÓN, agregar imageUrl
 export default function Products({ id, name, category, quantity, expire_date, imageUrl }) {
 
     const [deleteModalVisible, setDeleteModalVisible] = React.useState(false);
