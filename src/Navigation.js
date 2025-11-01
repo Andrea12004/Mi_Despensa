@@ -3,6 +3,7 @@ import { NavigationContainer } from "@react-navigation/native";
 
 import Home from "./screens/Home";
 import Add from "./screens/Add";
+import SugerirRecetas from "./screens/SugerirRecetas"; 
 
 const Stack = createNativeStackNavigator();
 
@@ -14,6 +15,11 @@ function MyStack() {
         name="Add" 
         component={Add} 
         options={{ presentation: 'modal' }}
+      />
+       <Stack.Screen 
+        name="SugerirRecetas" 
+        component={SugerirRecetas} 
+        options={{ title: "Sugerir Recetas" }} // 👈 título opcional
       />
     </Stack.Navigator>
   );
