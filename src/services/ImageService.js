@@ -2,7 +2,6 @@
 const SPOONACULAR_API_KEY = 'efc814225e17496282977b64044c640a'; 
 const SPOONACULAR_SEARCH = 'https://api.spoonacular.com/food/ingredients/search';
 
-// Mapeo de nombres en español a inglés para mejor búsqueda
 const traduccionesProductos = {
   'Manzana': 'apple',
   'Naranja': 'orange',

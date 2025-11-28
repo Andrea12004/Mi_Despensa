@@ -3,7 +3,7 @@ import * as RN from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons'; // ← AGREGAR ESTE IMPORT
 import { database } from '../config/fb';
 import { deleteDoc, doc, updateDoc } from "firebase/firestore";
-import { cancelProductNotifications, scheduleProductNotifications } from "../services/notification";
+import { cancelProductNotifications, scheduleProductNotifications } from "../services/emailService";
 import { Picker } from '@react-native-picker/picker';
 import { AntDesign } from '@expo/vector-icons';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -218,13 +218,13 @@ export default function Products({ id, name, category, quantity, expire_date, im
             >
                 <RN.View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.3)' }}>
                     <RN.View style={{ backgroundColor: '#fff', padding: 24, borderRadius: 10, width: '80%', alignItems: 'center' }}>
-                        <RN.Text style={{ fontSize: 20, fontWeight: 'bold', marginBottom: 12, color: 'red' }}>¡Advertencia!</RN.Text>
+                        <RN.Text style={{ fontSize: 20, fontWeight: 'bold', marginBottom: 12, color: '#FF6347' }}>¡Advertencia!</RN.Text>
                         <RN.Text style={{ fontSize: 16, marginBottom: 24, textAlign: 'center' }}>¿Estás seguro de que deseas eliminar "{name}"?</RN.Text>
                         <RN.View style={{ flexDirection: 'row', justifyContent: 'center' }}>
                             <RN.TouchableOpacity onPress={() => setDeleteModalVisible(false)} style={{ marginRight: 16, paddingVertical: 8, paddingHorizontal: 18, borderRadius: 6, backgroundColor: '#ccc' }}>
                                 <RN.Text style={{ color: '#333', fontWeight: 'bold', fontSize: 16 }}>Cancelar</RN.Text>
                             </RN.TouchableOpacity>
-                            <RN.TouchableOpacity onPress={onDelete} style={{ backgroundColor: 'red', borderRadius: 6, paddingVertical: 8, paddingHorizontal: 18 }}>
+                            <RN.TouchableOpacity onPress={onDelete} style={{ backgroundColor: '#FF6347', borderRadius: 6, paddingVertical: 8, paddingHorizontal: 18 }}>
                                 <RN.Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>Eliminar</RN.Text>
                             </RN.TouchableOpacity>
                         </RN.View>
@@ -287,28 +287,44 @@ export default function Products({ id, name, category, quantity, expire_date, im
                         </RN.TouchableOpacity>
 
                         {showEditDatePicker && (
-                            <DateTimePicker
-                                value={editData.expire_date ? new Date(editData.expire_date) : new Date()}
-                                mode="date"
-                                display="default"
-                                minimumDate={new Date()}
-                                onChange={(event, selectedDate) => {
-                                    setShowEditDatePicker(false);
-                                    if (selectedDate) {
-                                        const yyyy = selectedDate.getFullYear();
-                                        const mm = String(selectedDate.getMonth() + 1).padStart(2, '0');
-                                        const dd = String(selectedDate.getDate()).padStart(2, '0');
-                                        setEditData({ ...editData, expire_date: `${yyyy}-${mm}-${dd}` });
-                                    }
-                                }}
-                            />
+                            RN.Platform.OS === 'web' ? (
+                                <div style={{ width: '100%' }}>
+                                    <input
+                                        type="date"
+                                        value={editData.expire_date || ''}
+                                        min={new Date().toISOString().split('T')[0]}
+                                        onChange={(e) => {
+                                            setShowEditDatePicker(false);
+                                            const val = e.target.value; // yyyy-mm-dd
+                                            if (val) setEditData({ ...editData, expire_date: val });
+                                        }}
+                                        style={{ width: '100%', padding: 10, fontSize: 16, borderRadius: 6, border: '1px solid #ddd' }}
+                                    />
+                                </div>
+                            ) : (
+                                <DateTimePicker
+                                    value={editData.expire_date ? new Date(editData.expire_date) : new Date()}
+                                    mode="date"
+                                    display="default"
+                                    minimumDate={new Date()}
+                                    onChange={(event, selectedDate) => {
+                                        setShowEditDatePicker(false);
+                                        if (selectedDate) {
+                                            const yyyy = selectedDate.getFullYear();
+                                            const mm = String(selectedDate.getMonth() + 1).padStart(2, '0');
+                                            const dd = String(selectedDate.getDate()).padStart(2, '0');
+                                            setEditData({ ...editData, expire_date: `${yyyy}-${mm}-${dd}` });
+                                        }
+                                    }}
+                                />
+                            )
                         )}
 
                         <RN.View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 16 }}>
                             <RN.TouchableOpacity onPress={() => setModalVisible(false)} style={{ marginRight: 16 }}>
                                 <RN.Text style={{ color: '#888', fontSize: 16 }}>Cancelar</RN.Text>
                             </RN.TouchableOpacity>
-                            <RN.TouchableOpacity onPress={handleSave} style={{ backgroundColor: '#0fa5e9', borderRadius: 6, paddingVertical: 8, paddingHorizontal: 18 }}>
+                            <RN.TouchableOpacity onPress={handleSave} style={{ backgroundColor: '#2E8B57', borderRadius: 6, paddingVertical: 8, paddingHorizontal: 18 }}>
                                 <RN.Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>Guardar</RN.Text>
                             </RN.TouchableOpacity>
                         </RN.View>
@@ -328,7 +344,7 @@ const styles = RN.StyleSheet.create({
         shadowColor: "#000",
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.1,
-        shadowRadius: 4,
+        shadowRadius: 15,
         elevation: 3,
     },
     imageContainer: {
@@ -372,7 +388,7 @@ const styles = RN.StyleSheet.create({
         padding: 4,
     },
     quantityButton: {
-        backgroundColor: '#0fa5e9',
+        backgroundColor: '#2E8B57',
         width: 24,
         height: 25,
         borderRadius: 6,
