@@ -3,17 +3,48 @@ import * as RN from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { database, auth } from "../config/fb";
 import { collection, onSnapshot, orderBy, query, where } from "firebase/firestore";
+import { signOut } from 'firebase/auth';
 import Products from "../components/Products";
 import { MaterialIcons } from '@expo/vector-icons';
 
 export default function Home() {
     const [products, setProducts] = React.useState([]);
     const [activeNav, setActiveNav] = React.useState('Cocina');
+    const [menuVisible, setMenuVisible] = React.useState(false);
     const navigation = useNavigation();
 
     React.useLayoutEffect(() => {
         navigation.setOptions({ headerShown: false });
     }, [navigation]);
+
+    // Función para cerrar sesión
+    const handleLogout = () => {
+        setMenuVisible(false);
+        RN.Alert.alert(
+            '🚪 Cerrar Sesión',
+            '¿Estás seguro de que deseas salir?',
+            [
+                {
+                    text: 'Cancelar',
+                    style: 'cancel'
+                },
+                {
+                    text: 'Salir',
+                    style: 'destructive',
+                    onPress: async () => {
+                        try {
+                            console.log('🔓 Cerrando sesión...');
+                            await signOut(auth);
+                            console.log('✅ Sesión cerrada exitosamente');
+                        } catch (error) {
+                            console.error('❌ Error al cerrar sesión:', error);
+                            RN.Alert.alert('Error', 'No se pudo cerrar la sesión');
+                        }
+                    }
+                }
+            ]
+        );
+    };
 
     React.useEffect(() => {
         const user = auth.currentUser;
@@ -54,8 +85,13 @@ export default function Home() {
                 <RN.View style={styles.heroTopRow}>
                     <RN.View style={styles.leftPlaceholder} />
                     <RN.Text style={styles.logo}>Mi Despensa</RN.Text>
-                    <RN.TouchableOpacity style={styles.iconButton} onPress={() => {}}>
-                        <MaterialIcons name="search" size={26} color="#fff" />
+                    
+                    {/* Menú de usuario */}
+                    <RN.TouchableOpacity 
+                        style={styles.iconButton} 
+                        onPress={() => setMenuVisible(true)}
+                    >
+                        <MaterialIcons name="account-circle" size={32} color="#fff" />
                     </RN.TouchableOpacity>
                 </RN.View>
 
@@ -77,6 +113,42 @@ export default function Home() {
                     </RN.TouchableOpacity>
                 </RN.View>
             </RN.View>
+
+            {/* Modal de menú de usuario */}
+<RN.Modal
+    visible={menuVisible}
+    transparent={true}
+    animationType="fade"
+    onRequestClose={() => setMenuVisible(false)}
+>
+    <RN.TouchableOpacity 
+        style={styles.modalOverlay}
+        activeOpacity={1}
+        onPress={() => setMenuVisible(false)}
+    >
+        <RN.View style={styles.menuContainewr}>
+            <RN.View style={styles.menuHeader}>
+                <MaterialIcons name="account-circle" size={48} color="#365c36ff" />
+                <RN.Text style={styles.userEmail}>
+                    {auth.currentUser?.email || 'Usuario'}
+                </RN.Text>
+            </RN.View>
+
+            <RN.View style={styles.menuDivider} />
+
+            {/* Solo Cerrar sesión */}
+            <RN.TouchableOpacity 
+                style={styles.menuItem}
+                onPress={handleLogout}
+            >
+                <MaterialIcons name="logout" size={24} color="#dc3545" />
+                <RN.Text style={[styles.menuItemText, styles.logoutText]}>
+                    Cerrar Sesión
+                </RN.Text>
+            </RN.TouchableOpacity>
+        </RN.View>
+    </RN.TouchableOpacity>
+</RN.Modal>
 
             <RN.ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 120 }}>
                 <RN.Text style={styles.sectionTitle}>Inventario</RN.Text>
@@ -178,5 +250,58 @@ const styles = RN.StyleSheet.create({
         shadowOpacity: 0.2,
         shadowRadius: 8,
         elevation: 8,
+    },
+    // Estilos del modal de menú
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        justifyContent: 'flex-start',
+        alignItems: 'flex-end',
+    },
+    menuContainer: {
+        backgroundColor: '#fff',
+        marginTop: 70,
+        marginRight: 20,
+        borderRadius: 12,
+        minWidth: 250,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        elevation: 8,
+    },
+    menuHeader: {
+        alignItems: 'center',
+        padding: 20,
+        paddingBottom: 16,
+    },
+    userEmail: {
+        fontSize: 14,
+        color: '#666',
+        marginTop: 8,
+        textAlign: 'center',
+    },
+    menuDivider: {
+        height: 1,
+        backgroundColor: '#e0e0e0',
+    },
+    menuItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 16,
+        paddingHorizontal: 20,
+    },
+    menuItemText: {
+        fontSize: 16,
+        color: '#333',
+        marginLeft: 12,
+        fontWeight: '500',
+    },
+    logoutMenuItem: {
+        backgroundColor: '#fff5f5',
+    },
+    logoutText: {
+        color: '#dc3545',
+        fontWeight: '600',
     },
 });

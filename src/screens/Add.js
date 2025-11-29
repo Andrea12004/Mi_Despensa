@@ -4,14 +4,14 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { Platform } from 'react-native';
 import { useRef } from 'react';
 import { auth } from "../config/fb";
-import { database} from "../config/fb";
+import { database } from "../config/fb";
 import { collection, addDoc } from "firebase/firestore";
 import { useNavigation } from "@react-navigation/native";
 import { scheduleProductNotifications } from "../services/emailService";
 import { Picker } from '@react-native-picker/picker';
 import ImageService from '../services/ImageService';
 
-export default function Home() {
+export default function Add() {
     const [showDatePicker, setShowDatePicker] = React.useState(false);
     const navigation = useNavigation();
     const [isSaving, setIsSaving] = React.useState(false);
@@ -23,8 +23,9 @@ export default function Home() {
         imageUrl: '',
         createdAt: new Date(),
     });
+    
     // estados para reconocimiento de voz (web)
-    const [listeningField, setListeningField] = React.useState(null); // 'name' | 'category' | 'quantity' | null
+    const [listeningField, setListeningField] = React.useState(null);
     const [srError, setSrError] = React.useState(null);
     const recognitionRef = useRef(null);
     const isWeb = Platform.OS === 'web';
@@ -35,8 +36,6 @@ export default function Home() {
 
     React.useEffect(() => { listeningFieldRef.current = listeningField; }, [listeningField]);
     React.useEffect(() => { listeningCommandRef.current = listeningCommand; }, [listeningCommand]);
-
-    
 
     // Funciones para reconocimiento de voz
     const categoryOptions = [
@@ -53,7 +52,6 @@ export default function Home() {
         for (const opt of categoryOptions) {
             if (n.includes(normalize(opt))) return opt;
         }
-        // try startsWith
         for (const opt of categoryOptions) {
             if (normalize(opt).startsWith(n) || n.startsWith(normalize(opt).slice(0,3))) return opt;
         }
@@ -69,6 +67,7 @@ export default function Home() {
         for (const p of parts) if (map[p]) return map[p];
         return '';
     };
+
     const createWebRecognition = () => {
         if (!isWeb) return null;
         const SpeechRecognition = (typeof window !== 'undefined') && (window.SpeechRecognition || window.webkitSpeechRecognition);
@@ -127,7 +126,6 @@ export default function Home() {
 
     const startListeningFor = async (field) => {
         setSrError(null);
-        setNewItem(prev => ({ ...prev }));
         if (!isWeb) {
             setSrError('Reconocimiento de voz disponible sólo en la web por ahora.');
             return;
@@ -149,7 +147,6 @@ export default function Home() {
             recognitionRef.current = null;
         }
         setListeningField(null);
-        return;
     };
 
     const startCommandListening = async () => {
@@ -178,8 +175,8 @@ export default function Home() {
     };
 
     const handleCommand = (rawText) => {
-    const text = (rawText || '').toLowerCase().trim();
-    if (!text) return;
+        const text = (rawText || '').toLowerCase().trim();
+        if (!text) return;
         if (text.includes('guardar') && text.includes('producto')) {
             RN.Alert.alert('Comando detectado', `Ejecutando: ${text}`);
             onSend();
@@ -196,62 +193,90 @@ export default function Home() {
         setListeningCommand(false);
     };
 
+    // 🆕 FUNCIÓN CORREGIDA CON userId
     const onSend = async() => {
         if (isSaving) return;
 
-         if (!newItem.name || !newItem.category || !newItem.quantity || !newItem.expire_date) {
-            RN.Alert.alert('Campos incompletos', 'Por favor completa nombre, categoría , cantidad, fecha de vencimiento');
+        if (!newItem.name || !newItem.category || !newItem.quantity || !newItem.expire_date) {
+            RN.Alert.alert('Campos incompletos', 'Por favor completa nombre, categoría, cantidad, fecha de vencimiento');
             return;
         }
-         setIsSaving(true);
 
-         const imagenResultado = await ImageService.obtenerImagenProducto(
+        setIsSaving(true);
+
+        try {
+            // 🔍 Verificar que haya usuario autenticado
+            const user = auth.currentUser;
+            if (!user) {
+                RN.Alert.alert('Error', 'No hay usuario autenticado');
+                setIsSaving(false);
+                return;
+            }
+
+            console.log('👤 Usuario actual:', user.email, user.uid);
+
+            // Obtener imagen del producto
+            const imagenResultado = await ImageService.obtenerImagenProducto(
                 newItem.name, 
                 newItem.category
             );
 
+            // ✅ CREAR PRODUCTO CON userId
             const productoConImagen = {
+                name: newItem.name,
+                category: newItem.category,
+                quantity: newItem.quantity,
+                expire_date: newItem.expire_date,
+                imageUrl: imagenResultado.url,
+                userId: user.uid,           // ← IMPORTANTE
+                createdAt: new Date(),      // ← Timestamp actual
+            };
+
+            console.log('💾 Guardando producto:', productoConImagen);
+
+            // Guardar en Firestore
+            const docRef = await addDoc(collection(database, "productos"), productoConImagen);
+            
+            console.log('✅ Producto guardado con ID:', docRef.id);
+
+            // Programar notificaciones si tiene fecha de vencimiento
+            if (newItem.expire_date) {
+                await scheduleProductNotifications({
                     ...newItem,
-                    imageUrl: imagenResultado.url,
-                    userId: auth.currentUser?.uid, 
-                };
+                    id: docRef.id
+                });
+            }
 
-        const docRef = await addDoc(collection(database, "productos"), productoConImagen);
+            // Regresar a la pantalla anterior
+            navigation.goBack();
 
-        
-        // Programar notificaciones si tiene fecha de vencimiento
-        if (newItem.expire_date) {
-            await scheduleProductNotifications({
-                ...newItem,
-                id: docRef.id
-            });
+        } catch (error) {
+            console.error('❌ Error guardando producto:', error);
+            RN.Alert.alert('Error', 'No se pudo guardar el producto: ' + error.message);
+        } finally {
+            setIsSaving(false);
         }
-
-
-        navigation.goBack();
-
-    }
+    };
 
     return (
         <RN.ScrollView contentContainerStyle={styles.container}>
             <RN.Text style={styles.title}>Agregar Producto</RN.Text>
             <RN.Text style={styles.subtitle}>Ingresa los datos del producto</RN.Text>
-                <RN.View style={styles.commandContainer}>
-                    {isWeb ? (
-                        <RN.TouchableOpacity
-                            onPress={() => listeningCommand ? stopCommandListening() : startCommandListening()}
-                            style={[styles.commandButton, listeningCommand && styles.commandButtonActive]}
-                        >
-                            <RN.Text style={styles.commandButtonText}>
-                                {listeningCommand ? 'Escuchando...' : 'Ejecutar Asistente'}
-                            </RN.Text>
-                        </RN.TouchableOpacity>
-                    ) : (
-                        <RN.Text style={{ color: '#666', fontStyle: 'italic' }}>Asistente por voz disponible sólo en la web</RN.Text>
-                    )}
-                </RN.View>
-
-                
+            
+            <RN.View style={styles.commandContainer}>
+                {isWeb ? (
+                    <RN.TouchableOpacity
+                        onPress={() => listeningCommand ? stopCommandListening() : startCommandListening()}
+                        style={[styles.commandButton, listeningCommand && styles.commandButtonActive]}
+                    >
+                        <RN.Text style={styles.commandButtonText}>
+                            {listeningCommand ? 'Escuchando...' : 'Ejecutar Asistente'}
+                        </RN.Text>
+                    </RN.TouchableOpacity>
+                ) : (
+                    <RN.Text style={{ color: '#666', fontStyle: 'italic' }}>Asistente por voz disponible sólo en la web</RN.Text>
+                )}
+            </RN.View>
 
             <RN.View style={[styles.inputContainer, { flexDirection: 'row', alignItems: 'center' }]}> 
                 <RN.TextInput
@@ -284,19 +309,19 @@ export default function Home() {
                         onValueChange={(value) => setNewItem({...newItem, category: value})}
                         style={{ height: 50 }}
                     >
-                    <Picker.Item label="Selecciona una categoría *" value="" />
-                    <Picker.Item label="Frutas" value="Frutas" />
-                    <Picker.Item label="Verduras" value="Verduras" />
-                    <Picker.Item label="Lácteos" value="Lácteos" />
-                    <Picker.Item label="Carnes" value="Carnes" />
-                    <Picker.Item label="Granos" value="Granos" />
-                    <Picker.Item label="Panadería" value="Panadería" />
-                    <Picker.Item label="Bebidas" value="Bebidas" />
-                    <Picker.Item label="Condimentos" value="Condimentos" />
-                    <Picker.Item label="Congelados" value="Congelados" />
-                    <Picker.Item label="Dulces" value="Dulces" />
-                    <Picker.Item label="Enlatados" value="Enlatados" />
-                    <Picker.Item label="Otros" value="Otros" />
+                        <Picker.Item label="Selecciona una categoría *" value="" />
+                        <Picker.Item label="Frutas" value="Frutas" />
+                        <Picker.Item label="Verduras" value="Verduras" />
+                        <Picker.Item label="Lácteos" value="Lácteos" />
+                        <Picker.Item label="Carnes" value="Carnes" />
+                        <Picker.Item label="Granos" value="Granos" />
+                        <Picker.Item label="Panadería" value="Panadería" />
+                        <Picker.Item label="Bebidas" value="Bebidas" />
+                        <Picker.Item label="Condimentos" value="Condimentos" />
+                        <Picker.Item label="Congelados" value="Congelados" />
+                        <Picker.Item label="Dulces" value="Dulces" />
+                        <Picker.Item label="Enlatados" value="Enlatados" />
+                        <Picker.Item label="Otros" value="Otros" />
                     </Picker>
                 </RN.View>
                 {isWeb ? (
@@ -359,7 +384,7 @@ export default function Home() {
                             min={new Date().toISOString().split('T')[0]}
                             onChange={(e) => {
                                 setShowDatePicker(false);
-                                const val = e.target.value; // yyyy-mm-dd
+                                const val = e.target.value;
                                 if (val) setNewItem({ ...newItem, expire_date: val });
                             }}
                             style={{ width: '100%', padding: 10, fontSize: 16, borderRadius: 6, border: '1px solid #ddd' }}
@@ -445,13 +470,6 @@ const styles = RN.StyleSheet.create({
         fontWeight: 'bold',
         fontSize: 18,
     },
-    loadingText: {
-        marginTop: 12,
-        fontSize: 14,
-        color: '#666',
-        fontStyle: 'italic',
-    },
-    // Command button styles
     commandContainer: {
         width: '100%',
         alignItems: 'center',
