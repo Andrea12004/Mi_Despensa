@@ -18,6 +18,7 @@
     "dotenv": "^17.2.3",
     "expo": "^54.0.0",
     "expo-notifications": "~0.32.11",
+    "expo-speech": "~14.0.7",
     "expo-speech-recognition": "^3.0.1",
     "expo-status-bar": "~2.2.3",
     "firebase": "^9.23.0",

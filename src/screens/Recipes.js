@@ -1,140 +1,464 @@
-import * as React from 'react';
-import * as RN from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import React, { useState, useEffect, useRef } from "react";
+import {
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
+  TextInput,
+  ActivityIndicator,
+  StyleSheet,
+  Alert,
+} from "react-native";
+import { collection, getDocs } from "firebase/firestore";
+import { database } from "../config/fb";
 
-// TheMealDB docs: https://www.themealdb.com/api.php
+// Voz: TTS (texto a voz)
+import * as Speech from "expo-speech";
+// Reconocimiento de voz (STT)
+import * as SpeechRec from "expo-speech-recognition";
 
-export default function Recipes() {
-  const [query, setQuery] = React.useState('');
-  const [recipes, setRecipes] = React.useState([]);
-  const [loading, setLoading] = React.useState(false);
-  const [selected, setSelected] = React.useState(null);
-  const navigation = useNavigation();
+export default function SugerirRecetas() {
+  const [productos, setProductos] = useState([]);
+  const [recetas, setRecetas] = useState([]);
+  const [cargando, setCargando] = useState(false);
+  const [recetaSeleccionada, setRecetaSeleccionada] = useState(null);
+  const [query, setQuery] = useState("");
 
-  React.useLayoutEffect(() => {
-    navigation.setOptions({ headerShown: false });
-  }, [navigation]);
+  // estados de asistente de voz
+  const [speechAvailable, setSpeechAvailable] = useState(false);
+  const [listening, setListening] = useState(false);
+  const [transcript, setTranscript] = useState("");
 
-  const searchByIngredient = async (ingredient) => {
-    if (!ingredient) return;
-    setLoading(true);
-    try {
-      // TheMealDB filter by ingredient
-      const res = await fetch(`https://www.themealdb.com/api/json/v1/1/filter.php?i=${encodeURIComponent(ingredient)}`);
-      const json = await res.json();
-      setRecipes(json.meals || []);
-    } catch (e) {
-      console.error('[recipes] search error', e);
-      setRecipes([]);
-    }
-    setLoading(false);
+  const transcriptRef = useRef("");
+  transcriptRef.current = transcript;
+
+  // -------------------------------------------------------------
+  // 🔥 LIMPIAR INGREDIENTES
+  // -------------------------------------------------------------
+  const limpiarIngrediente = (texto) => {
+    if (!texto) return "";
+    return texto
+      .toLowerCase()
+      .replace(/[0-9]/g, "")
+      .replace(/\b(tb|tsp|cup|cups|sm|lg|ml|gr|g|kg|tbsp|oz)\b/gi, "")
+      .replace(/\b(cucharadas?|cucharadita|taza|tazas|gramos?)\b/gi, "")
+      .replace(/[^a-záéíóúñ ]/gi, "")
+      .trim()
+      .split(" ")
+      .filter((word) => word.length > 2)
+      .join(" ");
   };
 
-  const loadDetails = async (id) => {
-    setLoading(true);
-    try {
-      const res = await fetch(`https://www.themealdb.com/api/json/v1/1/lookup.php?i=${id}`);
-      const json = await res.json();
-      setSelected(json.meals?.[0] || null);
-    } catch (e) {
-      console.error('[recipes] load details', e);
-    }
-    setLoading(false);
+  // -------------------------------------------------------------
+  // 🤖 COINCIDENCIA INTELIGENTE
+  // -------------------------------------------------------------
+  const coincide = (userIng, recetaIng) => {
+    if (!userIng || !recetaIng) return false;
+    return recetaIng.includes(userIng) || userIng.includes(recetaIng);
   };
 
+  // -------------------------------------------------------------
+  // 🌍 TRADUCIR CON DeepL Proxy (ES → EN o EN → ES)
+  // -------------------------------------------------------------
+  const traducir = async (texto, target = "EN") => {
+    try {
+      const res = await fetch("https://api-free.deepl-proxy.net/translate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: texto, target_lang: target.toUpperCase() }),
+      });
+
+      const data = await res.json();
+      return data?.translated_text || texto;
+    } catch (e) {
+      console.log("Error DeepL:", e);
+      return texto;
+    }
+  };
+
+  // -------------------------------------------------------------
+  // 🔥 Cargar productos desde Firebase
+  // -------------------------------------------------------------
+  useEffect(() => {
+    const cargarProductos = async () => {
+      try {
+        const snapshot = await getDocs(collection(database, "productos"));
+        let productosData = snapshot.docs.map((doc) => ({
+          es: limpiarIngrediente(doc.data().name?.toLowerCase().trim() || ""),
+          en: "",
+        }));
+
+        productosData = await Promise.all(
+          productosData.map(async (prod) => {
+            try {
+              const en = limpiarIngrediente(await traducir(prod.es, "EN"));
+              return { ...prod, en };
+            } catch {
+              return { ...prod, en: prod.es };
+            }
+          })
+        );
+
+        setProductos(productosData);
+      } catch (error) {
+        console.log("Error productos:", error);
+      }
+    };
+
+    cargarProductos();
+  }, []);
+
+  // -------------------------------------------------------------
+  // 🍳 Buscar recetas por un solo ingrediente
+  // -------------------------------------------------------------
+  const buscarRecetas = async (triggeredByVoice = false) => {
+    // si fue activado por voz y hay transcript, usarlo
+    const q = triggeredByVoice && transcript ? transcript : query;
+    if (!q) return;
+    setCargando(true);
+
+    try {
+      const apiKey = "/GWtMPkp3jWA9dm02IJb0w==s8NZkpnntf1PP7wB";
+      const recetasSet = new Map();
+      const ingredienteBuscado = {
+        es: limpiarIngrediente(q),
+        en: await traducir(q, "EN"),
+      };
+
+      const res = await fetch(
+        `https://api.api-ninjas.com/v1/recipe?query=${encodeURIComponent(
+          ingredienteBuscado.en
+        )}`,
+        { headers: { "X-Api-Key": apiKey } }
+      );
+
+      const data = await res.json();
+      if (!Array.isArray(data) || data.length === 0) {
+        setRecetas([]);
+        setCargando(false);
+        Speech.speak("No se encontraron recetas. Intenta con otro ingrediente.");
+        return;
+      }
+
+      for (let item of data) {
+        const ingredientesAPI = item.ingredients?.split("|") || [];
+        const ingredientesLimpiosEN = ingredientesAPI.map((i) =>
+          limpiarIngrediente(i.toLowerCase())
+        );
+
+        const disponibles = [];
+        const faltantes = [];
+
+        for (let ing of ingredientesLimpiosEN) {
+          const tiene = productos.some((p) => coincide(p.en, ing));
+          if (tiene) disponibles.push(ing);
+          else faltantes.push(ing);
+        }
+
+        const tituloES = await traducir(item.title, "ES");
+        const instruccionesES = await traducir(item.instructions, "ES");
+
+        recetasSet.set(item.title, {
+          title: tituloES,
+          instructions: instruccionesES,
+          query: ingredienteBuscado.es,
+          disponibles,
+          faltantes,
+        });
+      }
+
+      setRecetas(Array.from(recetasSet.values()));
+      Speech.speak(`${recetasSet.size} recetas encontradas para ${ingredienteBuscado.es}.`);
+    } catch (e) {
+      console.log("Error recetas:", e);
+      setRecetas([]);
+      Speech.speak("Ocurrió un error buscando recetas.");
+    } finally {
+      setCargando(false);
+    }
+  };
+
+  // -------------------------------------------------------------
+  // ------------ ASISTENTE DE VOZ (expo-speech-recognition) -----
+  // -------------------------------------------------------------
+  useEffect(() => {
+    // inicializar permisos y disponibilidad
+    const initSpeech = async () => {
+      try {
+        // isAvailableAsync / requestPermissionsAsync son nombres comunes en libs de Expo
+        const available = SpeechRec.isAvailableAsync
+          ? await SpeechRec.isAvailableAsync()
+          : true;
+        setSpeechAvailable(available);
+
+        if (!available) {
+          console.log("Speech recognition not available on this device.");
+          return;
+        }
+
+        if (SpeechRec.requestPermissionsAsync) {
+          await SpeechRec.requestPermissionsAsync();
+        } else if (SpeechRec.requestAuthorization) {
+          // algunos paquetes usan este nombre
+          await SpeechRec.requestAuthorization();
+        }
+
+        // intentar limpiar listeners previos si existen
+        if (SpeechRec.removeAllListeners) {
+          SpeechRec.removeAllListeners();
+        }
+        // Si la librería expone un onSpeechResults, nos suscribimos:
+        if (SpeechRec.addListener) {
+          // handler para resultados intermedios/finales
+          SpeechRec.addListener("onSpeechResults", ({ value }) => {
+            // muchos módulos envían { value: ["texto reconocido"] }
+            const text = Array.isArray(value) ? value.join(" ") : value || "";
+            setTranscript(text);
+            setQuery(text);
+          });
+          // algunos módulos usan 'onSpeechPartialResults'
+          SpeechRec.addListener("onSpeechPartialResults", ({ value }) => {
+            const text = Array.isArray(value) ? value.join(" ") : value || "";
+            setTranscript(text);
+            setQuery(text);
+          });
+        }
+      } catch (e) {
+        console.log("Error init speech:", e);
+      }
+    };
+
+    initSpeech();
+
+    // cleanup on unmount
+    return () => {
+      try {
+        if (SpeechRec.removeAllListeners) SpeechRec.removeAllListeners();
+      } catch (e) {}
+    };
+  }, []);
+
+  const startListening = async () => {
+    if (!speechAvailable) {
+      Alert.alert("Micrófono", "El reconocimiento de voz no está disponible en este dispositivo.");
+      return;
+    }
+
+    try {
+      setTranscript("");
+      setListening(true);
+
+      // Algunos paquetes exponen startListening/stopListening
+      if (SpeechRec.startListening) {
+        await SpeechRec.startListening();
+      } else if (SpeechRec.start) {
+        // alternativa
+        await SpeechRec.start();
+      } else {
+        // fallback: algunos paquetes requieren un objeto con opciones
+        if (SpeechRec.startAsync) {
+          await SpeechRec.startAsync({ language: "es-ES", continuous: false });
+        }
+      }
+
+      Speech.speak("Te escucho. Di el ingrediente ahora.");
+    } catch (e) {
+      console.log("Error startListening:", e);
+      setListening(false);
+      Speech.speak("No pude activar el micrófono.");
+    }
+  };
+
+  const stopListening = async (autoSearch = true) => {
+    try {
+      if (SpeechRec.stopListening) {
+        await SpeechRec.stopListening();
+      } else if (SpeechRec.stop) {
+        await SpeechRec.stop();
+      } else if (SpeechRec.stopAsync) {
+        await SpeechRec.stopAsync();
+      }
+    } catch (e) {
+      console.log("Error stopListening:", e);
+    } finally {
+      setListening(false);
+      // si tenemos transcript lo dejamos en query y buscamos
+      if (transcriptRef.current && transcriptRef.current.trim().length > 0 && autoSearch) {
+        // small delay to ensure final result is set
+        setTimeout(() => buscarRecetas(true), 300);
+      } else {
+        Speech.speak("Detenido.");
+      }
+    }
+  };
+
+  const speakText = (text) => {
+    if (!text) return;
+    Speech.speak(text, { language: "es-ES" });
+  };
+
+  // -------------------------------------------------------------
+  // UI
+  // -------------------------------------------------------------
   return (
-    <RN.View style={{ flex: 1, backgroundColor: '#f5f5dce2' }}>
-      <RN.View style={styles.hero}>
-        <RN.View style={styles.heroTopRow}>
-          <RN.TouchableOpacity onPress={() => navigation.goBack()} style={{ padding: 8 }}>
-            <RN.Text style={{ color: '#fff' }}>{'←'}</RN.Text>
-          </RN.TouchableOpacity>
-          <RN.Text style={styles.logo}>Recetas</RN.Text>
-          <RN.View style={{ width: 40 }} />
-        </RN.View>
-      </RN.View>
+    <View style={{ flex: 1, backgroundColor: "#F5F5DC" }}>
+      {/* Barra de búsqueda */}
+      <View style={styles.searchContainer}>
+        <TextInput
+          value={query}
+          onChangeText={(t) => {
+            setQuery(t);
+            // limpiar transcript si el usuario escribe manualmente
+            setTranscript("");
+          }}
+          placeholder="Buscar por ingrediente..."
+          placeholderTextColor="#fff"
+          style={styles.searchInput}
+        />
+        <TouchableOpacity style={styles.searchButton} onPress={() => buscarRecetas(false)}>
+          <Text style={{ color: "#fff", fontWeight: "bold" }}>Buscar</Text>
+        </TouchableOpacity>
+      </View>
 
-      <RN.View style={{ padding: 16 }}>
-        <RN.Text style={{ fontSize: 16, marginBottom: 8 }}>Buscar por ingrediente</RN.Text>
-        <RN.View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <RN.TextInput
-            value={query}
-            onChangeText={setQuery}
-            placeholder="Ingrediente"
-            style={{ flex: 1, borderWidth: 1, borderColor: '#ddd', padding: 10, borderRadius: 6 }}
-          />
-          <RN.TouchableOpacity onPress={() => searchByIngredient(query)} style={{ marginLeft: 8, backgroundColor: '#2E8B57', padding: 10, borderRadius: 6 }}>
-            <RN.Text style={{ color: '#fff' }}>Buscar</RN.Text>
-          </RN.TouchableOpacity>
-        </RN.View>
+      {/* Controles de voz */}
+      <View style={{ padding: 12, backgroundColor: "#2E8B57", flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+        <View style={{ flex: 1 }}>
+          <Text style={{ color: "#fff", fontWeight: "bold", marginBottom: 6 }}>
+            Asistente de voz
+          </Text>
+          <Text style={{ color: "#fff" }}>
+            {speechAvailable ? (listening ? "Escuchando..." : "Listo para escuchar") : "Reconocimiento no disponible"}
+          </Text>
+          <Text style={{ color: "#fff", marginTop: 6, fontStyle: "italic" }}>
+            {transcript ? `Transcripción: ${transcript}` : "Presiona el micrófono y di el ingrediente"}
+          </Text>
+        </View>
 
-        {loading ? (
-          <RN.ActivityIndicator style={{ marginTop: 16 }} />
-        ) : null}
+        <View style={{ marginLeft: 10, flexDirection: "column" }}>
+          <TouchableOpacity
+            onPress={() => (listening ? stopListening(true) : startListening())}
+            style={{
+              padding: 10,
+              backgroundColor: listening ? "#8B0000" : "#365c36",
+              borderRadius: 8,
+              marginBottom: 8,
+            }}
+          >
+            <Text style={{ color: "#fff", fontWeight: "bold" }}>{listening ? "Detener" : "Micrófono"}</Text>
+          </TouchableOpacity>
 
-        <RN.ScrollView style={{ marginTop: 12 }}>
-          {recipes.length === 0 ? (
-            <RN.Text style={{ color: '#888', marginTop: 12 }}>No hay recetas. Busca por ingrediente para empezar.</RN.Text>
-          ) : (
-            recipes.map(r => (
-              <RN.TouchableOpacity key={r.idMeal} onPress={() => loadDetails(r.idMeal)} style={styles.recipeCard}>
-                <RN.Image source={{ uri: r.strMealThumb }} style={{ width: 80, height: 80, borderRadius: 8 }} />
-                <RN.View style={{ marginLeft: 12, flex: 1 }}>
-                  <RN.Text style={{ fontSize: 16, fontWeight: '700' }}>{r.strMeal}</RN.Text>
-                </RN.View>
-              </RN.TouchableOpacity>
-            ))
-          )}
-        </RN.ScrollView>
+          <TouchableOpacity
+            onPress={() => speakText(transcript || (query ? `Buscar recetas con ${query}` : "Di un ingrediente primero"))}
+            style={{ padding: 10, backgroundColor: "#3CA374", borderRadius: 8 }}
+          >
+            <Text style={{ color: "#fff", fontWeight: "bold" }}>Reproducir</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
 
-        {selected ? (
-          <RN.Modal visible={!!selected} animationType="slide" onRequestClose={() => setSelected(null)}>
-            <RN.View style={{ flex: 1, padding: 16 }}>
-              <RN.TouchableOpacity onPress={() => setSelected(null)} style={{ marginBottom: 12 }}>
-                <RN.Text>{'← Volver'}</RN.Text>
-              </RN.TouchableOpacity>
-              <RN.Text style={{ fontSize: 20, fontWeight: '800' }}>{selected.strMeal}</RN.Text>
-              <RN.Image source={{ uri: selected.strMealThumb }} style={{ width: '100%', height: 200, marginTop: 12, borderRadius: 8 }} />
-              <RN.ScrollView style={{ marginTop: 12 }}>
-                <RN.Text style={{ fontSize: 16, fontWeight: '700', marginBottom: 8 }}>Instrucciones</RN.Text>
-                <RN.Text style={{ color: '#333' }}>{selected.strInstructions}</RN.Text>
-              </RN.ScrollView>
-            </RN.View>
-          </RN.Modal>
-        ) : null}
-      </RN.View>
-    </RN.View>
+      <ScrollView contentContainerStyle={{ padding: 16 }}>
+        {cargando && <ActivityIndicator size="large" color="#DC143C" />}
+
+        {recetas.map((item, index) => (
+          <View key={index} style={styles.recipeCard}>
+            <TouchableOpacity
+              onPress={() =>
+                setRecetaSeleccionada(
+                  recetaSeleccionada === item.title ? null : item.title
+                )
+              }
+            >
+              <Text style={styles.recipeTitle}>{item.title}</Text>
+              <Text style={styles.recipeQuery}>🔍 Encontrada con: {item.query}</Text>
+            </TouchableOpacity>
+
+            {recetaSeleccionada === item.title && (
+              <View style={{ marginTop: 10 }}>
+                <Text style={styles.hasText}>✔ Ingredientes que tienes:</Text>
+                {item.disponibles.map((ing, i) => (
+                  <Text key={i} style={styles.hasIngredient}>• {ing}</Text>
+                ))}
+
+                <Text style={styles.missingText}>❗ Ingredientes que te faltan:</Text>
+                {item.faltantes.map((ing, i) => (
+                  <Text key={i} style={styles.missingIngredient}>• {ing}</Text>
+                ))}
+
+                <Text style={styles.instructionsHeader}>🧾 Instrucciones:</Text>
+                <Text style={styles.instructionsText}>{item.instructions}</Text>
+              </View>
+            )}
+          </View>
+        ))}
+      </ScrollView>
+    </View>
   );
 }
 
-const styles = RN.StyleSheet.create({
-  hero: {
-    backgroundColor: '#365c36ff',
-    paddingTop: 36,
-    paddingHorizontal: 20,
-    paddingBottom: 12,
+const styles = StyleSheet.create({
+  searchContainer: {
+    padding: 16,
+    backgroundColor: "#2E8B57",
+    flexDirection: "row",
+    alignItems: "center",
   },
-  heroTopRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+  searchInput: {
+    flex: 1,
+    backgroundColor: "#3CA374",
+    padding: 10,
+    borderRadius: 8,
+    color: "#fff",
   },
-  logo: {
-    color: '#fff',
-    fontSize: 24,
-    fontWeight: '800',
-    textAlign: 'center',
+  searchButton: {
+    marginLeft: 10,
+    padding: 10,
+    backgroundColor: "#365c36",
+    borderRadius: 8,
   },
   recipeCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-    backgroundColor: '#fff',
-    borderRadius: 8,
-    marginBottom: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-  }
+    marginBottom: 15,
+    padding: 14,
+    borderRadius: 15,
+    backgroundColor: "#FFFDF6",
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 5,
+    elevation: 3,
+  },
+  recipeTitle: {
+    fontSize: 18,
+    color: "#2E8B57",
+    textAlign: "center",
+    fontWeight: "bold",
+  },
+  recipeQuery: {
+    textAlign: "center",
+    color: "#555",
+    marginTop: 4,
+  },
+  hasText: {
+    color: "#2E8B57",
+    fontWeight: "bold",
+  },
+  hasIngredient: {
+    marginLeft: 10,
+    color: "#2E8B57",
+  },
+  missingText: {
+    marginTop: 10,
+    color: "#DC143C",
+    fontWeight: "bold",
+  },
+  missingIngredient: {
+    marginLeft: 10,
+    color: "#DC143C",
+  },
+  instructionsHeader: {
+    marginTop: 10,
+    fontWeight: "bold",
+  },
+  instructionsText: {
+    marginLeft: 10,
+    color: "#333",
+  },
 });
