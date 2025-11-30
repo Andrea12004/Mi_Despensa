@@ -13,71 +13,93 @@ export default function Home() {
     const [menuVisible, setMenuVisible] = React.useState(false);
     const navigation = useNavigation();
 
-    React.useLayoutEffect(() => {
-        navigation.setOptions({ headerShown: false });
-    }, [navigation]);
+    // Ya no necesitamos esto porque se configura en Navigation.js
 
-    // Función para cerrar sesión
-    const handleLogout = () => {
-        setMenuVisible(false);
-        RN.Alert.alert(
-            '🚪 Cerrar Sesión',
-            '¿Estás seguro de que deseas salir?',
-            [
-                {
-                    text: 'Cancelar',
-                    style: 'cancel'
-                },
-                {
-                    text: 'Salir',
-                    style: 'destructive',
-                    onPress: async () => {
-                        try {
-                            console.log('🔓 Cerrando sesión...');
-                            await signOut(auth);
-                            console.log('✅ Sesión cerrada exitosamente');
-                        } catch (error) {
-                            console.error('❌ Error al cerrar sesión:', error);
-                            RN.Alert.alert('Error', 'No se pudo cerrar la sesión');
-                        }
-                    }
-                }
-            ]
-        );
-    };
+   const handleLogout = async () => {
+    setMenuVisible(false);
+    
+    try {
+        console.log('🔓 EJECUTANDO SIGN OUT...');
+        
+        // ✅ FORZAR el signOut y luego verificar
+        await signOut(auth);
+        
+        console.log('✅ SignOut completado');
+        console.log('📍 auth.currentUser después de signOut:', auth.currentUser);
+        
+        // ✅ ESPERAR un momento y verificar si el listener no se disparó
+        setTimeout(() => {
+            if (auth.currentUser === null) {
+                console.log('🎯 Usuario es null - forzando actualización');
+                // Forzar recarga de la app
+                RN.Alert.alert(
+                    'Sesión cerrada', 
+                    'Has cerrado sesión correctamente',
+                    [{ text: 'OK' }]
+                );
+            } else {
+                console.log('⚠️ Aún hay usuario después de signOut');
+                // Forzar recarga manual
+                RN.Alert.alert(
+                    'Error', 
+                    'No se pudo cerrar sesión automáticamente. Reabre la app.',
+                    [{ text: 'OK' }]
+                );
+            }
+        }, 1000);
+        
+    } catch (error) {
+        console.error('❌ ERROR:', error);
+        RN.Alert.alert('Error', 'No se pudo cerrar sesión: ' + error.message);
+    }
+};
 
-    React.useEffect(() => {
-        const user = auth.currentUser;
-        if (!user) {
-            console.log('No hay usuario logueado');
-            return;
-        }
+   React.useEffect(() => {
+    const user = auth.currentUser;
+    if (!user) {
+        console.log('No hay usuario logueado');
+        return;
+    }
 
-        const collectionRef = collection(database, "productos");
-        const q = query(
-            collectionRef,
-            where("userId", "==", user.uid),
-            orderBy("createdAt", "desc")
-        );
+    console.log('👤 Usuario actual:', user.email, user.uid);
 
-        const unsubscribe = onSnapshot(q, async querySnapshot => {
-            const productsData = querySnapshot.docs.map(doc => ({
-                id: doc.id,
-                name: doc.data().name,
-                category: doc.data().category,
-                quantity: doc.data().quantity,
-                expire_date: doc.data().expire_date,
-                imageUrl: doc.data().imageUrl,
-            }));
-            
-            setProducts(productsData);
-            
-        }, (error) => {
-            console.error('[fb] onSnapshot error', error && error.code, error && error.message);
+    const collectionRef = collection(database, "productos");
+    
+    // ✅ CONSULTA SIMPLE - Sin orderBy para evitar errores de índice
+    const q = query(
+        collectionRef,
+        where("userId", "==", user.uid)
+        // ❌ QUITAMOS el orderBy que causa el error
+    );
+
+    const unsubscribe = onSnapshot(q, querySnapshot => {
+        console.log(`📦 ${querySnapshot.size} productos encontrados`);
+        
+        const productsData = querySnapshot.docs.map(doc => ({
+            id: doc.id,
+            name: doc.data().name,
+            category: doc.data().category,
+            quantity: doc.data().quantity,
+            expire_date: doc.data().expire_date,
+            imageUrl: doc.data().imageUrl,
+            createdAt: doc.data().createdAt,
+        }));
+        
+        // ✅ ORDENAR MANUALMENTE en vez de con orderBy
+        productsData.sort((a, b) => {
+            const dateA = a.createdAt?.toDate?.() || new Date(0);
+            const dateB = b.createdAt?.toDate?.() || new Date(0);
+            return dateB - dateA; // Más reciente primero
         });
         
-        return unsubscribe;
-    }, []);
+        setProducts(productsData);
+        
+    }, (error) => {
+        console.error('❌ Error en onSnapshot:', error);
+    });
+    
+    return unsubscribe;
+}, []);
 
     return (
         <RN.View style={{ flex: 1, backgroundColor: '#f5f5dce2' }}>
@@ -86,7 +108,6 @@ export default function Home() {
                     <RN.View style={styles.leftPlaceholder} />
                     <RN.Text style={styles.logo}>Mi Despensa</RN.Text>
                     
-                    {/* Menú de usuario */}
                     <RN.TouchableOpacity 
                         style={styles.iconButton} 
                         onPress={() => setMenuVisible(true)}
@@ -114,41 +135,40 @@ export default function Home() {
                 </RN.View>
             </RN.View>
 
-            {/* Modal de menú de usuario */}
-<RN.Modal
-    visible={menuVisible}
-    transparent={true}
-    animationType="fade"
-    onRequestClose={() => setMenuVisible(false)}
->
-    <RN.TouchableOpacity 
-        style={styles.modalOverlay}
-        activeOpacity={1}
-        onPress={() => setMenuVisible(false)}
-    >
-        <RN.View style={styles.menuContainewr}>
-            <RN.View style={styles.menuHeader}>
-                <MaterialIcons name="account-circle" size={48} color="#365c36ff" />
-                <RN.Text style={styles.userEmail}>
-                    {auth.currentUser?.email || 'Usuario'}
-                </RN.Text>
-            </RN.View>
-
-            <RN.View style={styles.menuDivider} />
-
-            {/* Solo Cerrar sesión */}
-            <RN.TouchableOpacity 
-                style={styles.menuItem}
-                onPress={handleLogout}
+            {/* ✅ MODAL CORREGIDO - menuContainer en vez de menuContainewr */}
+            <RN.Modal
+                visible={menuVisible}
+                transparent={true}
+                animationType="fade"
+                onRequestClose={() => setMenuVisible(false)}
             >
-                <MaterialIcons name="logout" size={24} color="#dc3545" />
-                <RN.Text style={[styles.menuItemText, styles.logoutText]}>
-                    Cerrar Sesión
-                </RN.Text>
-            </RN.TouchableOpacity>
-        </RN.View>
-    </RN.TouchableOpacity>
-</RN.Modal>
+                <RN.TouchableOpacity 
+                    style={styles.modalOverlay}
+                    activeOpacity={1}
+                    onPress={() => setMenuVisible(false)}
+                >
+                    <RN.View style={styles.menuContainer}>
+                        <RN.View style={styles.menuHeader}>
+                            <MaterialIcons name="account-circle" size={48} color="#365c36ff" />
+                            <RN.Text style={styles.userEmail}>
+                                {auth.currentUser?.email || 'Usuario'}
+                            </RN.Text>
+                        </RN.View>
+
+                        <RN.View style={styles.menuDivider} />
+
+                        <RN.TouchableOpacity 
+                            style={styles.menuItem}
+                            onPress={handleLogout}
+                        >
+                            <MaterialIcons name="logout" size={24} color="#dc3545" />
+                            <RN.Text style={[styles.menuItemText, styles.logoutText]}>
+                                Cerrar Sesión
+                            </RN.Text>
+                        </RN.TouchableOpacity>
+                    </RN.View>
+                </RN.TouchableOpacity>
+            </RN.Modal>
 
             <RN.ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 120 }}>
                 <RN.Text style={styles.sectionTitle}>Inventario</RN.Text>
@@ -251,7 +271,6 @@ const styles = RN.StyleSheet.create({
         shadowRadius: 8,
         elevation: 8,
     },
-    // Estilos del modal de menú
     modalOverlay: {
         flex: 1,
         backgroundColor: 'rgba(0,0,0,0.5)',
@@ -296,9 +315,6 @@ const styles = RN.StyleSheet.create({
         color: '#333',
         marginLeft: 12,
         fontWeight: '500',
-    },
-    logoutMenuItem: {
-        backgroundColor: '#fff5f5',
     },
     logoutText: {
         color: '#dc3545',

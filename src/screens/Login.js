@@ -7,7 +7,7 @@ import {
 } from 'firebase/auth';
 import { auth } from '../config/fb';
 
-export default function Login({ onLogin }) {
+export default function Login() {
   const [mode, setMode] = React.useState('login'); 
   const [email, setEmail] = React.useState('');
   const [password, setPassword] = React.useState('');
@@ -16,7 +16,7 @@ export default function Login({ onLogin }) {
   const [error, setError] = React.useState(null);
   const [showPassword, setShowPassword] = React.useState(false);
 
-  // Función para LOGIN (iniciar sesión)
+  // Función para LOGIN
   const handleLogin = async () => {
     if (!email || !password) {
       setError('Por favor completa todos los campos');
@@ -27,15 +27,14 @@ export default function Login({ onLogin }) {
     setError(null);
 
     try {
-      console.log('Iniciando sesión...');
+      console.log('🔐 Intentando iniciar sesión...');
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      console.log(' Login exitoso:', userCredential.user.email);
+      console.log('✅ Login exitoso:', userCredential.user.email);
       
-      if (onLogin) {
-        onLogin(userCredential.user);
-      }
+      // ✅ Navigation detectará automáticamente el cambio con onAuthStateChanged
+      
     } catch (error) {
-      console.error(' Error login:', error.code);
+      console.error('❌ Error login:', error.code);
       
       let mensaje = 'Error al iniciar sesión';
       
@@ -50,12 +49,11 @@ export default function Login({ onLogin }) {
       }
       
       setError(mensaje);
-    } finally {
       setLoading(false);
     }
   };
 
-  // Función para REGISTRO (crear cuenta)
+  // Función para REGISTRO
   const handleRegister = async () => {
     if (!email || !password || !confirmPassword) {
       setError('Por favor completa todos los campos');
@@ -76,21 +74,20 @@ export default function Login({ onLogin }) {
     setError(null);
 
     try {
-      console.log(' Registrando usuario...');
+      console.log('📝 Registrando usuario...');
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      console.log(' Registro exitoso:', userCredential.user.email);
+      console.log('✅ Registro exitoso:', userCredential.user.email);
       
       RN.Alert.alert(
-        '¡Cuenta creada!',
+        '✅ ¡Cuenta creada!',
         'Tu cuenta se ha creado exitosamente',
         [{ text: 'OK' }]
       );
       
-      if (onLogin) {
-        onLogin(userCredential.user);
-      }
+      // ✅ Navigation detectará automáticamente el cambio
+      
     } catch (error) {
-      console.error(' Error registro:', error.code);
+      console.error('❌ Error registro:', error.code);
       
       let mensaje = 'Error al crear la cuenta';
       
@@ -103,7 +100,6 @@ export default function Login({ onLogin }) {
       }
       
       setError(mensaje);
-    } finally {
       setLoading(false);
     }
   };
@@ -119,12 +115,14 @@ export default function Login({ onLogin }) {
     setError(null);
 
     try {
-      console.log(' Enviando email de recuperación...');
+      console.log('📧 Enviando email de recuperación a:', email);
       await sendPasswordResetEmail(auth, email);
       
+      console.log('✅ Email de recuperación enviado');
+      
       RN.Alert.alert(
-        ' Email enviado',
-        `Se ha enviado un correo a ${email} con instrucciones para recuperar tu contraseña`,
+        '📧 Email enviado',
+        `Se ha enviado un correo a ${email} con instrucciones para recuperar tu contraseña. Revisa tu bandeja de entrada y spam.`,
         [
           { 
             text: 'OK', 
@@ -133,7 +131,7 @@ export default function Login({ onLogin }) {
         ]
       );
     } catch (error) {
-      console.error(' Error recuperación:', error.code);
+      console.error('❌ Error recuperación:', error.code, error.message);
       
       let mensaje = 'Error al enviar el correo';
       
@@ -141,6 +139,8 @@ export default function Login({ onLogin }) {
         mensaje = 'No existe una cuenta con este correo';
       } else if (error.code === 'auth/invalid-email') {
         mensaje = 'Correo electrónico inválido';
+      } else if (error.code === 'auth/too-many-requests') {
+        mensaje = 'Demasiados intentos. Espera un momento e intenta de nuevo';
       }
       
       setError(mensaje);
@@ -166,12 +166,10 @@ export default function Login({ onLogin }) {
         contentContainerStyle={styles.scrollContainer}
         keyboardShouldPersistTaps="handled"
       >
-       
         <RN.View style={styles.logoContainer}>
           <RN.Text style={styles.logoEmoji}>🏪</RN.Text>
         </RN.View>
 
-       
         <RN.Text style={styles.title}>Mi Despensa</RN.Text>
         <RN.Text style={styles.subtitle}>
           {mode === 'login' && 'Inicia sesión para continuar'}
@@ -179,14 +177,12 @@ export default function Login({ onLogin }) {
           {mode === 'forgot' && 'Recupera tu contraseña'}
         </RN.Text>
 
-        {/* Mensaje de error */}
         {error ? (
           <RN.View style={styles.errorContainer}>
             <RN.Text style={styles.errorText}>⚠️ {error}</RN.Text>
           </RN.View>
         ) : null}
 
-        {/* Campo de Email */}
         <RN.View style={styles.inputContainer}>
           <RN.Text style={styles.label}>Correo electrónico</RN.Text>
           <RN.TextInput
@@ -201,7 +197,6 @@ export default function Login({ onLogin }) {
           />
         </RN.View>
 
-        {/* Campo de Contraseña (excepto en modo "forgot") */}
         {mode !== 'forgot' && (
           <RN.View style={styles.inputContainer}>
             <RN.Text style={styles.label}>Contraseña</RN.Text>
@@ -227,7 +222,6 @@ export default function Login({ onLogin }) {
           </RN.View>
         )}
 
-        {/* Campo de Confirmar Contraseña (solo en registro) */}
         {mode === 'register' && (
           <RN.View style={styles.inputContainer}>
             <RN.Text style={styles.label}>Confirmar contraseña</RN.Text>
@@ -243,7 +237,6 @@ export default function Login({ onLogin }) {
           </RN.View>
         )}
 
-        {/* Botón principal */}
         <RN.TouchableOpacity
           style={[styles.button, loading && styles.buttonDisabled]}
           onPress={() => {
@@ -259,12 +252,11 @@ export default function Login({ onLogin }) {
             <RN.Text style={styles.buttonText}>
               {mode === 'login' && 'Iniciar Sesión'}
               {mode === 'register' && 'Crear Cuenta'}
-              {mode === 'forgot' && 'Enviar Email'}
+              {mode === 'forgot' && 'Enviar Email de Recuperación'}
             </RN.Text>
           )}
         </RN.TouchableOpacity>
 
-     
         <RN.View style={styles.linksContainer}>
           {mode === 'login' && (
             <>
@@ -296,7 +288,7 @@ export default function Login({ onLogin }) {
           {mode === 'forgot' && (
             <RN.TouchableOpacity onPress={() => switchMode('login')}>
               <RN.Text style={styles.link}>
-                Volver al inicio de sesión
+                ← Volver al inicio de sesión
               </RN.Text>
             </RN.TouchableOpacity>
           )}
