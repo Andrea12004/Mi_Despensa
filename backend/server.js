@@ -168,7 +168,6 @@ async function checkExpiringProducts() {
 
         // Enviar email si cumple criterios
         const shouldNotify = 
-          daysUntil === 7 ||
           daysUntil === 3 ||
           daysUntil === 1 ||
           daysUntil === 0 ||

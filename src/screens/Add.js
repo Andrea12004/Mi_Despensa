@@ -228,7 +228,8 @@ export default function Add() {
                 quantity: newItem.quantity,
                 expire_date: newItem.expire_date,
                 imageUrl: imagenResultado.url,
-                userId: user.uid,           // ← IMPORTANTE
+                userId: user.uid,   
+                userEmail: user.email,        // ← IMPORTANTE
                 createdAt: new Date(),      // ← Timestamp actual
             };
 
