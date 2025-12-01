@@ -7,7 +7,6 @@ import { auth } from "../config/fb";
 import { database } from "../config/fb";
 import { collection, addDoc } from "firebase/firestore";
 import { useNavigation } from "@react-navigation/native";
-import { scheduleProductNotifications } from "../services/emailService";
 import { Picker } from '@react-native-picker/picker';
 import ImageService from '../services/ImageService';
 
@@ -240,13 +239,6 @@ export default function Add() {
             
             console.log('✅ Producto guardado con ID:', docRef.id);
 
-            // Programar notificaciones si tiene fecha de vencimiento
-            if (newItem.expire_date) {
-                await scheduleProductNotifications({
-                    ...newItem,
-                    id: docRef.id
-                });
-            }
 
             // Regresar a la pantalla anterior
             navigation.goBack();

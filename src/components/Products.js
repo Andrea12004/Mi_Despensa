@@ -1,6 +1,6 @@
 import * as React from 'react';
 import * as RN from 'react-native';
-import { MaterialCommunityIcons } from '@expo/vector-icons'; // ← AGREGAR ESTE IMPORT
+import { MaterialCommunityIcons } from '@expo/vector-icons'; 
 import { database } from '../config/fb';
 import { deleteDoc, doc, updateDoc } from "firebase/firestore";
 import { cancelProductNotifications, scheduleProductNotifications } from "../services/emailService";
@@ -66,15 +66,6 @@ export default function Products({ id, name, category, quantity, expire_date, im
             expire_date: editData.expire_date,
         });
 
-        // Reprogramar notificaciones
-        if (editData.expire_date) {
-            await scheduleProductNotifications({
-                id,
-                name: editData.name,
-                expire_date: editData.expire_date
-            });
-        }
-
         setModalVisible(false);
     };
 
@@ -96,7 +87,6 @@ export default function Products({ id, name, category, quantity, expire_date, im
     };
 
     const onDelete = async () => {
-        await cancelProductNotifications(id);
         const docRef = doc(database, "productos", id);
         await deleteDoc(docRef);
         setDeleteModalVisible(false);

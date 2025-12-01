@@ -19,26 +19,25 @@ export default function Home() {
     setMenuVisible(false);
     
     try {
-        console.log('🔓 EJECUTANDO SIGN OUT...');
+        console.log(' EJECUTANDO SIGN OUT...');
         
-        // ✅ FORZAR el signOut y luego verificar
+    
         await signOut(auth);
         
-        console.log('✅ SignOut completado');
-        console.log('📍 auth.currentUser después de signOut:', auth.currentUser);
+        console.log(' SignOut completado');
+        console.log(' auth.currentUser después de signOut:', auth.currentUser);
         
-        // ✅ ESPERAR un momento y verificar si el listener no se disparó
+        //  ESPERAR un momento y verificar si el listener no se disparó
         setTimeout(() => {
             if (auth.currentUser === null) {
-                console.log('🎯 Usuario es null - forzando actualización');
-                // Forzar recarga de la app
+                console.log(' Usuario es null - forzando actualización');
                 RN.Alert.alert(
                     'Sesión cerrada', 
                     'Has cerrado sesión correctamente',
                     [{ text: 'OK' }]
                 );
             } else {
-                console.log('⚠️ Aún hay usuario después de signOut');
+                console.log(' Aún hay usuario después de signOut');
                 // Forzar recarga manual
                 RN.Alert.alert(
                     'Error', 
@@ -49,7 +48,7 @@ export default function Home() {
         }, 1000);
         
     } catch (error) {
-        console.error('❌ ERROR:', error);
+        console.error(' ERROR:', error);
         RN.Alert.alert('Error', 'No se pudo cerrar sesión: ' + error.message);
     }
 };
@@ -65,15 +64,15 @@ export default function Home() {
 
     const collectionRef = collection(database, "productos");
     
-    // ✅ CONSULTA SIMPLE - Sin orderBy para evitar errores de índice
+
     const q = query(
         collectionRef,
         where("userId", "==", user.uid)
-        // ❌ QUITAMOS el orderBy que causa el error
+  
     );
 
     const unsubscribe = onSnapshot(q, querySnapshot => {
-        console.log(`📦 ${querySnapshot.size} productos encontrados`);
+        console.log(` ${querySnapshot.size} productos encontrados`);
         
         const productsData = querySnapshot.docs.map(doc => ({
             id: doc.id,
@@ -85,17 +84,17 @@ export default function Home() {
             createdAt: doc.data().createdAt,
         }));
         
-        // ✅ ORDENAR MANUALMENTE en vez de con orderBy
+
         productsData.sort((a, b) => {
             const dateA = a.createdAt?.toDate?.() || new Date(0);
             const dateB = b.createdAt?.toDate?.() || new Date(0);
-            return dateB - dateA; // Más reciente primero
+            return dateB - dateA; 
         });
         
         setProducts(productsData);
         
     }, (error) => {
-        console.error('❌ Error en onSnapshot:', error);
+        console.error(' Error en onSnapshot:', error);
     });
     
     return unsubscribe;
@@ -135,7 +134,7 @@ export default function Home() {
                 </RN.View>
             </RN.View>
 
-            {/* ✅ MODAL CORREGIDO - menuContainer en vez de menuContainewr */}
+
             <RN.Modal
                 visible={menuVisible}
                 transparent={true}

@@ -32,9 +32,9 @@ export default function SugerirRecetas() {
   const transcriptRef = useRef("");
   transcriptRef.current = transcript;
 
-  // -------------------------------------------------------------
-  // 🔥 LIMPIAR INGREDIENTES
-  // -------------------------------------------------------------
+
+  //  LIMPIAR INGREDIENTES
+
   const limpiarIngrediente = (texto) => {
     if (!texto) return "";
     return texto
@@ -49,17 +49,17 @@ export default function SugerirRecetas() {
       .join(" ");
   };
 
-  // -------------------------------------------------------------
-  // 🤖 COINCIDENCIA INTELIGENTE
-  // -------------------------------------------------------------
+
+  //  COINCIDENCIA INTELIGENTE
+
   const coincide = (userIng, recetaIng) => {
     if (!userIng || !recetaIng) return false;
     return recetaIng.includes(userIng) || userIng.includes(recetaIng);
   };
 
-  // -------------------------------------------------------------
-  // 🌍 TRADUCIR CON DeepL Proxy (ES → EN o EN → ES)
-  // -------------------------------------------------------------
+
+  //  TRADUCIR CON DeepL Proxy (ES → EN o EN → ES)
+
   const traducir = async (texto, target = "EN") => {
     try {
       const res = await fetch("https://api-free.deepl-proxy.net/translate", {
@@ -76,9 +76,8 @@ export default function SugerirRecetas() {
     }
   };
 
-  // -------------------------------------------------------------
-  // 🔥 Cargar productos desde Firebase
-  // -------------------------------------------------------------
+  //  Cargar productos desde Firebase
+
   useEffect(() => {
     const cargarProductos = async () => {
       try {
@@ -108,9 +107,9 @@ export default function SugerirRecetas() {
     cargarProductos();
   }, []);
 
-  // -------------------------------------------------------------
-  // 🍳 Buscar recetas por un solo ingrediente
-  // -------------------------------------------------------------
+
+  //  Buscar recetas por un solo ingrediente
+
   const buscarRecetas = async (triggeredByVoice = false) => {
     // si fue activado por voz y hay transcript, usarlo
     const q = triggeredByVoice && transcript ? transcript : query;
@@ -178,9 +177,9 @@ export default function SugerirRecetas() {
     }
   };
 
-  // -------------------------------------------------------------
+
   // ------------ ASISTENTE DE VOZ (expo-speech-recognition) -----
-  // -------------------------------------------------------------
+
   useEffect(() => {
     // inicializar permisos y disponibilidad
     const initSpeech = async () => {
@@ -255,7 +254,6 @@ export default function SugerirRecetas() {
         // alternativa
         await SpeechRec.start();
       } else {
-        // fallback: algunos paquetes requieren un objeto con opciones
         if (SpeechRec.startAsync) {
           await SpeechRec.startAsync({ language: "es-ES", continuous: false });
         }
@@ -297,9 +295,7 @@ export default function SugerirRecetas() {
     Speech.speak(text, { language: "es-ES" });
   };
 
-  // -------------------------------------------------------------
-  // UI
-  // -------------------------------------------------------------
+
   return (
     <View style={{ flex: 1, backgroundColor: "#F5F5DC" }}>
       {/* Barra de búsqueda */}
